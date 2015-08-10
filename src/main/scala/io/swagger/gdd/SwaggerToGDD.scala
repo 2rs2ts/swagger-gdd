@@ -195,6 +195,7 @@ object SwaggerToGDD {
     val schema = new Schema
     schema.id = property.getName
     schema.description = property.getDescription // todo what about title?
+    schema.required = property.getRequired
     property match {
       case prop: RefProperty =>
         schema.$ref = prop.getSimpleRef
