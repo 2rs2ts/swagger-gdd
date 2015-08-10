@@ -5,7 +5,7 @@ import scala.collection.JavaConverters._
 import io.swagger.gdd.Method.SchemaRef
 import io.swagger.models._
 import io.swagger.models.parameters.{AbstractSerializableParameter, BodyParameter, RefParameter}
-import io.swagger.models.properties.{ArrayProperty, Property, RefProperty}
+import io.swagger.models.properties._
 
 object SwaggerToGDD {
 
@@ -202,9 +202,38 @@ object SwaggerToGDD {
       case prop: ArrayProperty =>
         schema.`type` = "array"
         schema.items = Option(prop.getItems).map(propertyToGDD).orNull
-      case prop => // todo other property types?
+      case prop: UUIDProperty =>
+        schema.`type` = "string"
+        schema.pattern = prop.getPattern
+      case prop: EmailProperty =>
+        schema.`type` = "string"
+        schema.pattern = prop.getPattern
+        schema._default = prop.getDefault
+      case prop: StringProperty =>
+        schema.`type` = "string"
+        Option(prop.getFormat).foreach {
+          case "byte" => schema.format = "byte"
+          case _ =>
+        }
+        schema.pattern = prop.getPattern
+        schema._enum = prop.getEnum
+        schema._default = prop.getDefault
+      case prop: AbstractNumericProperty =>
         schema.`type` = prop.getType
         schema.format = prop.getFormat
+        schema.minimum = Option(prop.getMinimum).map(_.toString).orNull
+        schema.maximum = Option(prop.getMaximum).map(_.toString).orNull
+        schema._default = prop match {
+          case p: IntegerProperty => Option(p.getDefault).map(_.toString).orNull
+          case p: LongProperty => Option(p.getDefault).map(_.toString).orNull
+          case p: FloatProperty => Option(p.getDefault).map(_.toString).orNull
+          case p: DoubleProperty => Option(p.getDefault).map(_.toString).orNull
+          case p: DecimalProperty => null
+        }
+      case prop =>
+        schema.`type` = prop.getType
+        schema.format = prop.getFormat
+      // todo FileProperty
     }
     schema
   }
