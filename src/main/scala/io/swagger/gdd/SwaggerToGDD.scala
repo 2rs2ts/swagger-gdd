@@ -7,7 +7,10 @@ import io.swagger.models._
 import io.swagger.models.parameters.{AbstractSerializableParameter, BodyParameter, RefParameter}
 import io.swagger.models.properties._
 
-object SwaggerToGDD {
+/**
+ * Converts Swagger models to GDD equivalents.
+ */
+class SwaggerToGDD {
 
   // todo: allow passing Operation => Operation to transform based on tags
   // todo: vendorExtensions
@@ -292,4 +295,15 @@ object SwaggerToGDD {
   }
 
 
+}
+
+object SwaggerToGDD {
+  /**
+   * Create a new GoogleDiscoveryDocument from a Swagger instance. The Swagger will not be modified.
+   * @param swagger a model of a swagger document
+   * @return the Swagger converted into a GoogleDiscoveryDocument
+   */
+  def swaggerToGDD(swagger: Swagger): GoogleDiscoveryDocument = {
+    new SwaggerToGDD().swaggerToGDD(swagger)
+  }
 }
