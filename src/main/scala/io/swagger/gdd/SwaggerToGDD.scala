@@ -58,10 +58,10 @@ object SwaggerToGDD {
       }
       gdd.resources = pathsByBase.foldLeft(Map.empty[String, Resource]) {
         case (curr, ("", ps)) => // root level methods go under methods, not resources
-          gdd.methods = pathObjectsToGDD(ps).methods
+          gdd.methods = pathObjectsToGDD(ps, gdd).methods
           curr
         case (curr, (basePath, ps)) =>
-          curr + (basePath.stripPrefix("/") -> pathObjectsToGDD(ps))
+          curr + (basePath.stripPrefix("/") -> pathObjectsToGDD(ps, gdd))
       }.asJava
     }
 
@@ -81,10 +81,10 @@ object SwaggerToGDD {
    * @param paths Paths grouped by key (path value)
    * @return the Resource with all of its methods
    */
-  def pathObjectsToGDD(paths: Map[String, Path]): Resource = {
+  def pathObjectsToGDD(paths: Map[String, Path], gdd: GoogleDiscoveryDocument): Resource = {
     val resource = new Resource
     resource.methods = paths.foldLeft(Map.empty[String, Method]) {
-      case (curr, (pathValue, path)) => curr ++ pathObjectToGDD(pathValue, path)
+      case (curr, (pathValue, path)) => curr ++ pathObjectToGDD(pathValue, path, gdd)
     }.asJava
     resource
   }
@@ -95,14 +95,14 @@ object SwaggerToGDD {
    * @param path the Path object
    * @return
    */
-  def pathObjectToGDD(pathValue: String, path: Path): Map[String, Method] = {
-    val methods = Option(path.getGet).map(operationToGDD(_, pathValue, "GET")) ::
-      Option(path.getPut).map(operationToGDD(_, pathValue, "PUT")) ::
-      Option(path.getPost).map(operationToGDD(_, pathValue, "POST")) ::
-      Option(path.getPatch).map(operationToGDD(_, pathValue, "PATCH")) ::
-      Option(path.getDelete).map(operationToGDD(_, pathValue, "DELETE")) ::
-      Option(path.getHead).map(operationToGDD(_, pathValue, "HEAD")) ::
-      Option(path.getOptions).map(operationToGDD(_, pathValue, "OPTIONS")) :: List.empty[Option[Method]]
+  def pathObjectToGDD(pathValue: String, path: Path, gdd: GoogleDiscoveryDocument): Map[String, Method] = {
+    val methods = Option(path.getGet).map(operationToGDD(_, pathValue, "GET", gdd)) ::
+      Option(path.getPut).map(operationToGDD(_, pathValue, "PUT", gdd)) ::
+      Option(path.getPost).map(operationToGDD(_, pathValue, "POST", gdd)) ::
+      Option(path.getPatch).map(operationToGDD(_, pathValue, "PATCH", gdd)) ::
+      Option(path.getDelete).map(operationToGDD(_, pathValue, "DELETE", gdd)) ::
+      Option(path.getHead).map(operationToGDD(_, pathValue, "HEAD", gdd)) ::
+      Option(path.getOptions).map(operationToGDD(_, pathValue, "OPTIONS", gdd)) :: List.empty[Option[Method]]
     methods.foldLeft(Map.empty[String, Method]) {
       case (curr, Some(m)) => curr + (m.id -> m)
       case (curr, None) => curr
@@ -116,16 +116,21 @@ object SwaggerToGDD {
    * @param httpMethod the HTTP method for the operation
    * @return
    */
-  def operationToGDD(op: Operation, pathValue: String, httpMethod: String): Method = {
+  def operationToGDD(op: Operation, pathValue: String, httpMethod: String, gdd: GoogleDiscoveryDocument): Method = {
     val method = new Method
     method.id = op.getOperationId
     method.description = op.getSummary
     method.httpMethod = httpMethod
     method.path = pathValue
-    Option(op.getResponses).map(_.asScala.toMap).flatMap(findMethodResponse).map(_.getSchema).foreach {
+    Option(op.getResponses).map(_.asScala.toMap).flatMap(findMethodResponse).flatMap(r => Option(r.getSchema)).foreach {
       case property: RefProperty =>
         method.response = new SchemaRef(property.getSimpleRef)
-      case property => // todo non-ref responses have to get added as schemas since GDD doesn't allow non-ref responses
+      case property =>
+        // non-ref responses have to get added as schemas since GDD doesn't allow non-ref responses
+        val prop = propertyToGDD(property)
+        prop.id = s"${method.id}Response"
+        gdd.schemas.put(prop.id, prop)
+        method.response = new SchemaRef(prop.id)
     }
     Option(op.getParameters).map(_.asScala.toList).foreach { parameters =>
       method.parameters = parameters.foldLeft(Map.empty[String, Parameter]) {
