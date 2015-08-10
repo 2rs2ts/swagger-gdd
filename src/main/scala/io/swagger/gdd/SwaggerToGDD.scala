@@ -13,6 +13,11 @@ object SwaggerToGDD {
   // todo: vendorExtensions
   // todo: header, form, cookie params are all things that Swagger supports but GDD does not. only path and query.
 
+  /**
+   * Create a new GoogleDiscoveryDocument from a Swagger instance. The Swagger will not be modified.
+   * @param swagger a model of a swagger document
+   * @return the Swagger converted into a GoogleDiscoveryDocument
+   */
   def swaggerToGDD(swagger: Swagger): GoogleDiscoveryDocument = {
     val gdd = new GoogleDiscoveryDocument
 
@@ -68,6 +73,12 @@ object SwaggerToGDD {
     gdd
   }
 
+  /**
+   * Change the Schema Object (Model) into a GDD Schema. The Model will not be changed.
+   * @param key the key that the Schema Object was stored under, will become the id of the GDD Schema
+   * @param model the Schema Object that will be converted into a GDD Schema
+   * @return the converted Schema
+   */
   def schemaObjectToGDD(key: String, model: Model): Schema = {
     val schema = new Schema
     schema.id = key
@@ -77,7 +88,7 @@ object SwaggerToGDD {
   }
 
   /**
-   *
+   * Turn Path Objects into a GDD Resource. The Path Objects will not be changed.
    * @param paths Paths grouped by key (path value)
    * @return the Resource with all of its methods
    */
@@ -90,10 +101,13 @@ object SwaggerToGDD {
   }
 
   /**
-   * Add the operations of a Path object to a Resource as Methods keyed by id
+   * Convert the Operations of a Path Object to Methods keyed by id, to be added to a Resource. The Path Object will not
+   * be changed.
    * @param pathValue the full path value (including path parameters)
    * @param path the Path object
-   * @return
+   * @param gdd the original GoogleDiscoveryDocument, which may need to have its schemas changed based on the Operations
+   *            of the Path Object
+   * @return a map of Method id to Method
    */
   def pathObjectToGDD(pathValue: String, path: Path, gdd: GoogleDiscoveryDocument): Map[String, Method] = {
     val methods = Option(path.getGet).map(operationToGDD(_, pathValue, "GET", gdd)) ::
@@ -110,11 +124,13 @@ object SwaggerToGDD {
   }
 
   /**
-   *
+   * Convert an Operation to a GDD Method. The Operation will not be changed.
    * @param op the Operation on the Path
    * @param pathValue the full path value for the operation (including path parameters)
    * @param httpMethod the HTTP method for the operation
-   * @return
+   * @param gdd the original GoogleDiscoveryDocument, which may have its schemas added to if an Operation's response is
+   *            not a reference type
+   * @return the converted Method
    */
   def operationToGDD(op: Operation, pathValue: String, httpMethod: String, gdd: GoogleDiscoveryDocument): Method = {
     val method = new Method
@@ -158,9 +174,9 @@ object SwaggerToGDD {
   }
 
   /**
-   * Turn a Swagger parameter into a GDD Parameter.
-   * @param parameter the parameter to transform
-   * @return
+   * Turn a Swagger Parameter into a GDD Parameter. The (Swagger) Parameter will not be changed.
+   * @param parameter the Parameter to transform
+   * @return the converted Parameter
    */
   def parameterToGDD(parameter: io.swagger.models.parameters.Parameter): Parameter = {
     val param = new Parameter
@@ -193,12 +209,10 @@ object SwaggerToGDD {
   }
 
   /**
-   * Turn a Property into a Schema.
+   * Turn a Property into a GDD Schema. The Property will not be changed.
    *
-   * Note: required is intentionally omitted since the field is marked with JsonIgnore in swagger-models.
-   *
-   * @param property the property to convert
-   * @return
+   * @param property the Property to convert
+   * @return the converted Schema
    */
   def propertyToGDD(property: Property): Schema = {
     val schema = new Schema
@@ -254,7 +268,7 @@ object SwaggerToGDD {
   }
 
   /**
-   * <i>Side effecting</i>. Changes the schema/parameter based on the type of the model.
+   * <i>Side effecting</i>. Changes the Schema/Parameter based on the type of the Model.
    * @param schema the Schema or Parameter to modify
    * @param model the Model to use for manipulating the schema
    */
