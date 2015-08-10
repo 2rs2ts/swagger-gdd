@@ -172,7 +172,10 @@ object SwaggerToGDD {
         param.location = p.getIn // GDD doesn't care about this for body params, but we only take the ref from it anyway
         param.minimum = Option(p.getMinimum).map(_.toString).orNull
         param.maximum = Option(p.getMaximum).map(_.toString).orNull
-        param.items = Option(p.getItems).map(propertyToGDD).orNull
+        param.items = Option(p.getItems).map(propertyToGDD).map { prop =>
+          prop.required = null  // required seems awkward here
+          prop
+        }.orNull
         Option(p.getCollectionFormat).foreach {
           case "multi" => param.repeated = true
           case _ =>
