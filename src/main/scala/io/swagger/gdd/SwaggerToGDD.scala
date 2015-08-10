@@ -240,7 +240,7 @@ object SwaggerToGDD {
           case p: LongProperty => Option(p.getDefault).map(_.toString).orNull
           case p: FloatProperty => Option(p.getDefault).map(_.toString).orNull
           case p: DoubleProperty => Option(p.getDefault).map(_.toString).orNull
-          case p: DecimalProperty => null
+          case _ => null
         }
       case prop: ObjectProperty =>
         schema.`type` = "object"
