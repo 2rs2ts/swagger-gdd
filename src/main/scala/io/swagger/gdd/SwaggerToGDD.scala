@@ -129,6 +129,7 @@ object SwaggerToGDD {
         // non-ref responses have to get added as schemas since GDD doesn't allow non-ref responses
         val prop = propertyToGDD(property)
         prop.id = s"${method.id}Response"
+        prop.required = null // required seems awkward here
         gdd.schemas.put(prop.id, prop)
         method.response = new SchemaRef(prop.id)
     }
@@ -209,7 +210,10 @@ object SwaggerToGDD {
         schema.$ref = prop.getSimpleRef
       case prop: ArrayProperty =>
         schema.`type` = "array"
-        schema.items = Option(prop.getItems).map(propertyToGDD).orNull
+        schema.items = Option(prop.getItems).map(propertyToGDD).map { p =>
+          p.required = null // required seems awkward here
+          p
+        }.orNull
       case prop: UUIDProperty =>
         schema.`type` = "string"
         schema.pattern = prop.getPattern
