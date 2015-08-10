@@ -242,6 +242,9 @@ object SwaggerToGDD {
           case p: DoubleProperty => Option(p.getDefault).map(_.toString).orNull
           case p: DecimalProperty => null
         }
+      case prop: ObjectProperty =>
+        schema.`type` = "object"
+        // todo add additonalProperties when it's supported in swagger-models
       case prop =>
         schema.`type` = prop.getType
         schema.format = prop.getFormat
