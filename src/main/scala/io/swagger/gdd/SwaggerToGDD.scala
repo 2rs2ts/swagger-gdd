@@ -248,7 +248,7 @@ object SwaggerToGDD {
       case prop =>
         schema.`type` = prop.getType
         schema.format = prop.getFormat
-      // todo FileProperty
+      // todo FileProperty - the problem is that GDD has no concept of formData
     }
     schema
   }
