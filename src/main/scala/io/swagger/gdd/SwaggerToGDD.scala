@@ -9,8 +9,18 @@ import io.swagger.models.properties._
 
 /**
  * Converts Swagger models to GDD equivalents.
+ * @param gddFactory factory method for making a GoogleDiscoveryDocument, useful for injecting your own implementation
+ * @param resourceFactory factory method for making a Resource, useful for injecting your own implementation
+ * @param methodFactory factory method for making a Method, useful for injecting your own implementation
+ * @param schemaFactory factory method for making a Schema, useful for injecting your own implementation
+ * @param parameterFactory factory method for making a Parameter, useful for injecting your own implementation
  */
-class SwaggerToGDD {
+class SwaggerToGDD(
+                    val gddFactory: () => GoogleDiscoveryDocument = () => new GoogleDiscoveryDocument,
+                    val resourceFactory: () => Resource = () => new Resource,
+                    val methodFactory: () => Method = () => new Method,
+                    val schemaFactory: () => Schema = () => new Schema,
+                    val parameterFactory: () => Parameter = () => new Parameter) {
 
   // todo: allow passing Operation => Operation to transform based on tags
   // todo: vendorExtensions
@@ -22,7 +32,7 @@ class SwaggerToGDD {
    * @return the Swagger converted into a GoogleDiscoveryDocument
    */
   def swaggerToGDD(swagger: Swagger): GoogleDiscoveryDocument = {
-    val gdd = new GoogleDiscoveryDocument
+    val gdd = gddFactory()
 
     // basics: basePath -> servicePath, schemes + host -> rootUrl
     gdd.servicePath = swagger.getBasePath
@@ -83,7 +93,7 @@ class SwaggerToGDD {
    * @return the converted Schema
    */
   def schemaObjectToGDD(key: String, model: Model): Schema = {
-    val schema = new Schema
+    val schema = schemaFactory()
     schema.id = key
     schema.description = model.getDescription
     changeSchemaUsingModel(schema, model)
@@ -96,7 +106,7 @@ class SwaggerToGDD {
    * @return the Resource with all of its methods
    */
   def pathObjectsToGDD(paths: Map[String, Path], gdd: GoogleDiscoveryDocument): Resource = {
-    val resource = new Resource
+    val resource = resourceFactory()
     resource.methods = paths.foldLeft(Map.empty[String, Method]) {
       case (curr, (pathValue, path)) => curr ++ pathObjectToGDD(pathValue, path, gdd)
     }.asJava
@@ -136,7 +146,7 @@ class SwaggerToGDD {
    * @return the converted Method
    */
   def operationToGDD(op: Operation, pathValue: String, httpMethod: String, gdd: GoogleDiscoveryDocument): Method = {
-    val method = new Method
+    val method = methodFactory()
     method.id = op.getOperationId
     method.description = op.getSummary
     method.httpMethod = httpMethod
@@ -182,7 +192,7 @@ class SwaggerToGDD {
    * @return the converted Parameter
    */
   def parameterToGDD(parameter: io.swagger.models.parameters.Parameter): Parameter = {
-    val param = new Parameter
+    val param = parameterFactory()
     param.id = parameter.getName
     param.description = parameter.getDescription
     param.required = parameter.getRequired
@@ -218,7 +228,7 @@ class SwaggerToGDD {
    * @return the converted Schema
    */
   def propertyToGDD(property: Property): Schema = {
-    val schema = new Schema
+    val schema = schemaFactory()
     schema.id = property.getName
     schema.description = property.getDescription // todo what about title?
     schema.required = property.getRequired
