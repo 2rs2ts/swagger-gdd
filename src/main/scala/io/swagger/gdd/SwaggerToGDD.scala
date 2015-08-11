@@ -9,6 +9,11 @@ import io.swagger.models.properties._
 
 /**
  * Converts Swagger models to GDD equivalents.
+ *
+ * If you want to add customizations to your GDD output, subclass the GDD models and pass factory methods for them into
+ * this class. Then you can either change your custom models after the fact, or you can subclass this class and override
+ * the behavior, preferably by calling super and then making the changes you need afterward.
+ *
  * @param gddFactory factory method for making a GoogleDiscoveryDocument, useful for injecting your own implementation
  * @param resourceFactory factory method for making a Resource, useful for injecting your own implementation
  * @param methodFactory factory method for making a Method, useful for injecting your own implementation
@@ -22,8 +27,6 @@ class SwaggerToGDD(
                     val schemaFactory: () => Schema = () => new Schema,
                     val parameterFactory: () => Parameter = () => new Parameter) {
 
-  // todo: allow passing Operation => Operation to transform based on tags
-  // todo: vendorExtensions
   // todo: header, form, cookie params are all things that Swagger supports but GDD does not. only path and query.
 
   /**
