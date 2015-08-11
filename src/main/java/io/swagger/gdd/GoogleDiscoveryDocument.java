@@ -10,8 +10,8 @@ import java.util.Map;
  */
 public class GoogleDiscoveryDocument {
     // todo populate discoveryVersion
-    public String kind = "discovery@restDescription", discoveryVersion, id, name, version, revision, title, description,
-            documentationLink, protocol = "rest", rootUrl, servicePath, batchPath;
+    public String kind = "discovery@restDescription", discoveryVersion = "v1", id, name, version, revision, title,
+            description, documentationLink, protocol = "rest", rootUrl, servicePath, batchPath;
     public Icons icons;
     /**
      * Labels for the status of this API.
