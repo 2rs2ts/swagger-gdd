@@ -8,7 +8,8 @@ libraryDependencies ++= Seq(
   "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.0",
   "org.scalacheck" %% "scalacheck" % "1.12.4" % "test",
   "org.specs2" %% "specs2-core" % "3.6.4" % "test",
-  "org.specs2" %% "specs2-scalacheck" % "3.6.4" % "test"
+  "org.specs2" %% "specs2-scalacheck" % "3.6.4" % "test",
+  "com.paypal" %% "cascade-common" % "0.5.0" % "test" classifier "tests" exclude("org.slf4j", "slf4j-api") exclude("com.fasterxml.jackson.datatype", "jackson-datatype-joda")
 )
 
 lazy val `swagger-gdd` = (project in file(".")).
