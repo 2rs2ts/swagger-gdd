@@ -1,6 +1,14 @@
+import SiteKeys.siteSourceDirectory
+
 val projectOrg = "io.swagger"
 val projectName = "swagger-gdd"
 val scalaVsn = "2.11.7"
+
+site.settings
+siteSourceDirectory := file("site")
+site.includeScaladoc()
+ghpages.settings
+git.remoteRepo := "git@github.com:2rs2ts/swagger-gdd.git"
 
 libraryDependencies ++= Seq(
   "io.swagger" % "swagger-models" % "1.5.3" exclude("com.fasterxml.jackson.core", "jackson-annotations"),
