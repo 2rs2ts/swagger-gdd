@@ -225,7 +225,53 @@ class SwaggerToGDD(
   }
 
   /**
-   * Turn a Property into a GDD Schema. The Property will not be changed.
+   * Turn a Swagger [[Property]] into a GDD [[Schema]]. The `Property` will not be changed.
+   *
+   * If any of the `Property`'s fields are `null`, the resulting `Schema` will not have its related fields populated.
+   * All language below speaks as though those fields will not be `null`.
+   *
+   * The resulting Schema will have its `id`, `description`, and `required` fields populated regardless of the subclass
+   * of `Property`. Besides [[RefProperty]], everything else will result in the `type` field being populated as well.
+   * `RefProperty` will result in the `$ref` field being populated.
+   *
+   * For [[StringProperty]], [[EmailProperty]], and [[UUIDProperty]], the `pattern` field will be populated.
+   * `StringProperty` and `EmailProperty` will result in the `_default` field being populated. `StringProperty` will
+   * also result in the `_enum` field being populated, and if the `Property`'s `format` is `"byte"`, then so will the
+   * `Schema`'s `format` be.
+   *
+   * [[DateProperty]], [[DateTimeProperty]], and [[ByteArrayProperty]] will be treated as a `StringProperty` with
+   * `format` equal to `"date"`, `"date-time"`, and `"byte"` respectively, but none will result in the `pattern` field
+   * being populated.
+   *
+   * For any [[AbstractNumericProperty]], the `format`, `minimum`, and `maximum` fields will all be populated.
+   * [[IntegerProperty]], [[LongProperty]], [[DoubleProperty]], and [[FloatProperty]] will result in the `_default`
+   * field being populated.
+   *
+   * For [[ArrayProperty]], the `items` field will be populated.
+   *
+   * For [[MapProperty]], the `additionalProperties` field will be populated.
+   *
+   * For [[ObjectProperty]], the `properties` field will be populated.
+   *
+   * @todo Implement something sane for [[FileProperty]].
+   *
+   * <table>
+   *  <tr><th>`Schema` field</th><th>`Property` field which determines it</th></tr>
+   *  <tr><td>`id`</td><td>`name`</td></tr>
+   *  <tr><td>`description`</td><td>`description`</td></tr>
+   *  <tr><td>`required`</td><td>`required`</td></tr>
+   *  <tr><td>`type`</td><td>`type` (or manually set)</td></tr>
+   *  <tr><td>`format`</td><td>`format` (or manually set)</td></tr>
+   *  <tr><td>`pattern`</td><td>`pattern`</td></tr>
+   *  <tr><td>`_default`</td><td>`default`</td></tr>
+   *  <tr><td>`_enum`</td><td>`enum`</td></tr>
+   *  <tr><td>`minimum`</td><td>`minimum`</td></tr>
+   *  <tr><td>`maximum`</td><td>`maximum`</td></tr>
+   *  <tr><td>`items`</td><td>`items`</td></tr>
+   *  <tr><td>`properties`</td><td>`properties`</td></tr>
+   *  <tr><td>`additionalProperties`</td><td>`additionalProperties`</td></tr>
+   *  <tr><td>`$ref`</td><td>`$ref` (simple ref)</td></tr>
+   * </table>
    *
    * @param property the Property to convert
    * @return the converted Schema
@@ -238,12 +284,8 @@ class SwaggerToGDD(
     property match {
       case prop: RefProperty =>
         schema.$ref = prop.getSimpleRef
-      case prop: ArrayProperty =>
-        schema.`type` = "array"
-        schema.items = Option(prop.getItems).map(propertyToGDD).map { p =>
-          p.required = null // required seems awkward here
-          p
-        }.orNull
+      case prop: BooleanProperty =>
+        schema.`type` = "boolean"
       case prop: UUIDProperty =>
         schema.`type` = "string"
         schema.pattern = prop.getPattern
@@ -260,6 +302,21 @@ class SwaggerToGDD(
         schema.pattern = prop.getPattern
         schema._enum = prop.getEnum
         schema._default = prop.getDefault
+      case prop: DateProperty =>
+        schema.`type` = "string"
+        schema.format = "date"
+      case prop: DateTimeProperty =>
+        schema.`type` = "string"
+        schema.format = "date-time"
+      case prop: ByteArrayProperty =>
+        schema.`type` = "string"
+        schema.format = "byte"
+      case prop: LongProperty =>
+        schema.`type` = "string"
+        schema.format = "int64"
+        schema.minimum = Option(prop.getMinimum).map(_.toString).orNull
+        schema.maximum = Option(prop.getMaximum).map(_.toString).orNull
+        schema._default = Option(prop.getDefault).map(_.toString).orNull
       case prop: AbstractNumericProperty =>
         schema.`type` = prop.getType
         schema.format = prop.getFormat
@@ -267,18 +324,26 @@ class SwaggerToGDD(
         schema.maximum = Option(prop.getMaximum).map(_.toString).orNull
         schema._default = prop match {
           case p: IntegerProperty => Option(p.getDefault).map(_.toString).orNull
-          case p: LongProperty => Option(p.getDefault).map(_.toString).orNull
           case p: FloatProperty => Option(p.getDefault).map(_.toString).orNull
           case p: DoubleProperty => Option(p.getDefault).map(_.toString).orNull
           case _ => null
         }
+      case prop: ArrayProperty =>
+        schema.`type` = "array"
+        schema.items = Option(prop.getItems).map(propertyToGDD).map { p =>
+          p.required = null // required seems awkward here
+          p
+        }.orNull
+      case prop: MapProperty =>
+        schema.`type` = "object"
+        schema.additionalProperties = Option(prop.getAdditionalProperties).map(propertyToGDD).orNull
       case prop: ObjectProperty =>
         schema.`type` = "object"
-        // todo add additonalProperties when it's supported in swagger-models
-      case prop =>
+        schema.properties = Option(prop.getProperties).map(_.asScala.mapValues(propertyToGDD)).getOrElse(Map.empty).asJava
+      case prop: FileProperty =>
+        // todo figure out a sane way to treat these since GDD has no concept of formData.
         schema.`type` = prop.getType
         schema.format = prop.getFormat
-      // todo FileProperty - the problem is that GDD has no concept of formData
     }
     schema
   }
@@ -290,7 +355,6 @@ class SwaggerToGDD(
    */
   def changeSchemaUsingModel(schema: AbstractSchema, model: Model): Unit = model match {
     case model: RefModel =>
-      schema.`type` = "object"
       schema.$ref = model.getSimpleRef
     case model: ArrayModel =>
       schema.`type` = "array"
@@ -311,6 +375,7 @@ class SwaggerToGDD(
 }
 
 object SwaggerToGDD {
+
   /**
    * Create a new GoogleDiscoveryDocument from a Swagger instance. The Swagger will not be modified.
    * @param swagger a model of a swagger document
@@ -318,5 +383,9 @@ object SwaggerToGDD {
    */
   def swaggerToGDD(swagger: Swagger): GoogleDiscoveryDocument = {
     new SwaggerToGDD().swaggerToGDD(swagger)
+  }
+
+  def propertyToGDD(property: Property): Schema = {
+    new SwaggerToGDD().propertyToGDD(property)
   }
 }
