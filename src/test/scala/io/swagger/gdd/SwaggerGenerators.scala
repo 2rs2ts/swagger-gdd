@@ -1,6 +1,7 @@
 package io.swagger.gdd
 
 import java.net.URL
+import java.util
 import java.util.UUID
 
 import scala.collection.JavaConverters._
@@ -20,7 +21,7 @@ import com.paypal.cascade.common.tests.scalacheck._
 /**
  * Scalacheck generators that create Swagger models.
  */
-class SwaggerGenerators {
+object SwaggerGenerators {
 
   // todo add xml generator and add it to properties
 
@@ -528,8 +529,8 @@ class SwaggerGenerators {
       genDecimalProperty, genFloatProperty, genDoubleProperty,
       genBooleanProperty,
       genStringProperty, genEmailProperty,
-      genDateProperty, genDateTimeProperty, genUUIDProperty,
-      genArrayProperty(globalDefinitions), genMapProperty(globalDefinitions), genObjectProperty
+      genDateProperty, genDateTimeProperty, genUUIDProperty, genByteArrayProperty,
+      genArrayProperty(globalDefinitions), genMapProperty(globalDefinitions), genObjectProperty(globalDefinitions)
       // todo file property
     )
     oneOf[Gen[Property]](
@@ -655,7 +656,10 @@ class SwaggerGenerators {
         case (min, max) => option(const(min)).flatMap(mn => option(const(max)).map(mn -> _))
       }
       enum <- option(nonEmptyListOf(arbitrary[String]))
-      default <- option(sequence(enum.map(oneOf(_))).map(_.get(0))) // sequence only outputs arraylist...
+      default <- enum match {
+        case Some(values) => option(oneOf(values))
+        case None => const(None)
+      }
       pattern <- arbitrary[Option[String]]
     } yield {
       minLength.map(_.toInt).foreach(i => property.setMinLength(i))
@@ -705,6 +709,19 @@ class SwaggerGenerators {
   }
 
   /**
+   * Generate a [[ByteArrayProperty]].
+   */
+  def genByteArrayProperty: Gen[ByteArrayProperty] = {
+    for {
+      property <- (new ByteArrayProperty).withCommonFields
+      example <- option(arbitrary[Array[Byte]].map(util.Arrays.toString))
+    } yield {
+      example.foreach(property.setExample)
+      property
+    }
+  }
+
+  /**
    * Generate an [[io.swagger.models.properties.ArrayProperty ArrayProperty]]. `items` will not be null, but
    * `uniqueItems` may be.
    * @param globalDefinitions [[io.swagger.models.Model Model]]s defined in the [[io.swagger.models.Swagger Swagger]]
@@ -712,7 +729,7 @@ class SwaggerGenerators {
    */
   def genArrayProperty(globalDefinitions: Option[Map[String, Model]] = None): Gen[ArrayProperty] = {
     for {
-      items <- genProperty(globalDefinitions)
+      items <- delay(genProperty(globalDefinitions))
       property <- new ArrayProperty(items).withCommonFields
       uniqueItems <- arbitrary[Option[Boolean]]
     } yield {
@@ -729,7 +746,7 @@ class SwaggerGenerators {
   def genMapProperty(globalDefinitions: Option[Map[String, Model]] = None): Gen[MapProperty] = {
     for {
       property <- (new MapProperty).withCommonFields
-      additionalProperties <- option(genProperty(globalDefinitions))
+      additionalProperties <- option(delay(genProperty(globalDefinitions)))
     } yield {
       additionalProperties.foreach(property.setAdditionalProperties)
       property
@@ -737,9 +754,19 @@ class SwaggerGenerators {
   }
 
   /**
-   * Generate an [[io.swagger.models.properties.ObjectProperty ObjectProperty]].
+   * Generate an [[io.swagger.models.properties.ObjectProperty ObjectProperty]]. `properties` may be left null.
+   * @param globalDefinitions [[io.swagger.models.Model Model]]s defined in the [[io.swagger.models.Swagger Swagger]]
+   *                         document which can be referred to
    */
-  def genObjectProperty: Gen[ObjectProperty] = (new ObjectProperty).withCommonFields
+  def genObjectProperty(globalDefinitions: Option[Map[String, Model]] = None): Gen[ObjectProperty] = {
+    for {
+      property <- (new ObjectProperty).withCommonFields
+      properties <- option(mapOf(delay(genProperty(globalDefinitions).map(prop => prop.getName -> prop))).map(_.asJava))
+    } yield {
+      properties.foreach(property.setProperties)
+      property
+    }
+  }
 
   /**
    * Generate a [[io.swagger.models.properties.RefProperty RefProperty]].
