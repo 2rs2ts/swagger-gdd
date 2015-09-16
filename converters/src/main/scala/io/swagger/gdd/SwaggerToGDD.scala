@@ -279,12 +279,6 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         schema.set$ref(prop.getSimpleRef)
       case prop: BooleanProperty =>
         schema.setType("boolean")
-      case prop: ArrayProperty =>
-        schema.setType("array")
-        Option(prop.getItems).map(propertyToGDD).map { p =>
-          p.setRequired(null) // required seems awkward here
-          p
-        }.foreach(schema.setItems)
       case prop: UUIDProperty =>
         schema.setType("string")
         schema.setPattern(prop.getPattern)
