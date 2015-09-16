@@ -222,30 +222,6 @@ public class GoogleDiscoveryDocument {
         this.resources = resources;
     }
 
-    /**
-     * Models the "icons" property.
-     */
-    public static class Icons {
-        private String x16;
-        private String x32;
-
-        public String getX16() {
-            return x16;
-        }
-
-        public void setX16(String x16) {
-            this.x16 = x16;
-        }
-
-        public String getX32() {
-            return x32;
-        }
-
-        public void setX32(String x32) {
-            this.x32 = x32;
-        }
-    }
-
     public enum Label {
         LIMITED_AVAILABILITY("limited_availability"), DEPRECATED("deprecated");
         private final String label;

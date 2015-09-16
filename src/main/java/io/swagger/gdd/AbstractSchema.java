@@ -1,7 +1,5 @@
 package io.swagger.gdd;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.List;
 import java.util.Map;
 
@@ -27,13 +25,6 @@ public abstract class AbstractSchema {
     private List<String> enumDescriptions;
     private Boolean required;
     private Boolean repeated;
-
-    /**
-     * Models the "annotations" property.
-     */
-    public static class Annotations {
-        public String[] required;
-    }
 
     public String getId() {
         return id;
