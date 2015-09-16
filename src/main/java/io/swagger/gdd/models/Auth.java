@@ -1,6 +1,4 @@
-package io.swagger.gdd;
-
-import java.util.Map;
+package io.swagger.gdd.models;
 
 /**
  * Models the "auth" object.

@@ -1,4 +1,4 @@
-package io.swagger.gdd;
+package io.swagger.gdd.models;
 
 import java.util.List;
 

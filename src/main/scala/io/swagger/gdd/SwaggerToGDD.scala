@@ -2,6 +2,7 @@ package io.swagger.gdd
 
 import scala.collection.JavaConverters._
 
+import io.swagger.gdd.models._
 import io.swagger.models._
 import io.swagger.models.parameters.{AbstractSerializableParameter, BodyParameter, RefParameter}
 import io.swagger.models.properties._
