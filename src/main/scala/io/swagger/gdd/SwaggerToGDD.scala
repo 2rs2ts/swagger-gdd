@@ -3,6 +3,7 @@ package io.swagger.gdd
 import scala.collection.JavaConverters._
 
 import io.swagger.gdd.models._
+import io.swagger.gdd.models.factory.GDDModelFactory
 import io.swagger.models._
 import io.swagger.models.parameters.{AbstractSerializableParameter, BodyParameter, RefParameter}
 import io.swagger.models.properties._
@@ -14,18 +15,10 @@ import io.swagger.models.properties._
  * this class. Then you can either change your custom models after the fact, or you can subclass this class and override
  * the behavior, preferably by calling super and then making the changes you need afterward.
  *
- * @param gddFactory factory method for making a GoogleDiscoveryDocument, useful for injecting your own implementation
- * @param resourceFactory factory method for making a Resource, useful for injecting your own implementation
- * @param methodFactory factory method for making a Method, useful for injecting your own implementation
- * @param schemaFactory factory method for making a Schema, useful for injecting your own implementation
- * @param parameterFactory factory method for making a Parameter, useful for injecting your own implementation
+ * @param modelFactory factory for creating GDD models. For custom implementations, subclass [[GDDModelFactory]] to
+ *                     inject different models.
  */
-class SwaggerToGDD(
-                    val gddFactory: () => GoogleDiscoveryDocument = () => new GoogleDiscoveryDocument,
-                    val resourceFactory: () => Resource = () => new Resource,
-                    val methodFactory: () => Method = () => new Method,
-                    val schemaFactory: () => Schema = () => new Schema,
-                    val parameterFactory: () => Parameter = () => new Parameter) {
+class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
 
   // todo: header, form, cookie params are all things that Swagger supports but GDD does not. only path and query.
 
@@ -35,7 +28,7 @@ class SwaggerToGDD(
    * @return the Swagger converted into a GoogleDiscoveryDocument
    */
   def swaggerToGDD(swagger: Swagger): GoogleDiscoveryDocument = {
-    val gdd = gddFactory()
+    val gdd = modelFactory.newGoogleDiscoveryDocument()
 
     // basics: basePath -> servicePath, schemes + host -> rootUrl
     gdd.setServicePath(swagger.getBasePath)
@@ -96,7 +89,7 @@ class SwaggerToGDD(
    * @return the converted Schema
    */
   def schemaObjectToGDD(key: String, model: Model): Schema = {
-    val schema = schemaFactory()
+    val schema = modelFactory.newSchema()
     schema.setId(key)
     schema.setDescription(model.getDescription)
     changeSchemaUsingModel(schema, model)
@@ -109,7 +102,7 @@ class SwaggerToGDD(
    * @return the Resource with all of its methods
    */
   def pathObjectsToGDD(paths: Map[String, Path], gdd: GoogleDiscoveryDocument): Resource = {
-    val resource = resourceFactory()
+    val resource = modelFactory.newResource()
     resource.setMethods(paths.foldLeft(Map.empty[String, Method]) {
       case (curr, (pathValue, path)) => curr ++ pathObjectToGDD(pathValue, path, gdd)
     }.asJava)
@@ -149,26 +142,26 @@ class SwaggerToGDD(
    * @return the converted Method
    */
   def operationToGDD(op: Operation, pathValue: String, httpMethod: String, gdd: GoogleDiscoveryDocument): Method = {
-    val method = methodFactory()
+    val method = modelFactory.newMethod()
     method.setId(op.getOperationId)
     method.setDescription(op.getSummary)
     method.setHttpMethod(httpMethod)
     method.setPath(pathValue)
     Option(op.getResponses).map(_.asScala.toMap).flatMap(findMethodResponse).flatMap(r => Option(r.getSchema)).foreach {
       case property: RefProperty =>
-        method.setResponse(new SchemaRef(property.getSimpleRef))
+        method.setResponse(modelFactory.newSchemaRef(property.getSimpleRef))
       case property =>
         // non-ref responses have to get added as schemas since GDD doesn't allow non-ref responses
         val prop = propertyToGDD(property)
         prop.setId(s"${method.getId}Response")
         prop.setRequired(null) // required seems awkward here
         gdd.getSchemas.put(prop.getId, prop)
-        method.setResponse(new SchemaRef(prop.getId))
+        method.setResponse(modelFactory.newSchemaRef(prop.getId))
     }
     Option(op.getParameters).map(_.asScala.toList).foreach { parameters =>
       method.setParameters(parameters.foldLeft(Map.empty[String, Parameter]) {
         case (curr, param) if "body".equals(param.getIn) =>
-          method.setRequest(new SchemaRef(parameterToGDD(param).get$ref)) // todo make sure this is in schemas
+          method.setRequest(modelFactory.newSchemaRef(parameterToGDD(param).get$ref)) // todo make sure this is in schemas
           curr
         case (curr, param) =>
           curr + (param.getName -> parameterToGDD(param))
@@ -195,7 +188,7 @@ class SwaggerToGDD(
    * @return the converted Parameter
    */
   def parameterToGDD(parameter: io.swagger.models.parameters.Parameter): Parameter = {
-    val param = parameterFactory()
+    val param = modelFactory.newParameter()
     param.setId(parameter.getName)
     param.setDescription(parameter.getDescription)
     param.setRequired(parameter.getRequired)
@@ -231,7 +224,7 @@ class SwaggerToGDD(
    * @return the converted Schema
    */
   def propertyToGDD(property: Property): Schema = {
-    val schema = schemaFactory()
+    val schema = modelFactory.newSchema()
     schema.setId(property.getName)
     schema.setDescription(property.getDescription) // todo what about title?
     schema.setRequired(property.getRequired)
