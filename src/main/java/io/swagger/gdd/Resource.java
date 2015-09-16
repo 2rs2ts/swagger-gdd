@@ -6,9 +6,25 @@ public class Resource {
     /**
      * Resource-level methods.
      */
-    public Map<String, Method> methods;
+    private Map<String, Method> methods;
     /**
      * Sub-resources.
      */
-    public Map<String, Resource> resources;
+    private Map<String, Resource> resources;
+
+    public Map<String, Method> getMethods() {
+        return methods;
+    }
+
+    public void setMethods(Map<String, Method> methods) {
+        this.methods = methods;
+    }
+
+    public Map<String, Resource> getResources() {
+        return resources;
+    }
+
+    public void setResources(Map<String, Resource> resources) {
+        this.resources = resources;
+    }
 }
