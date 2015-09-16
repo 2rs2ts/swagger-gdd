@@ -530,7 +530,29 @@ object SwaggerGenerators {
       genBooleanProperty,
       genStringProperty, genEmailProperty,
       genDateProperty, genDateTimeProperty, genUUIDProperty, genByteArrayProperty,
-      genArrayProperty(globalDefinitions), genMapProperty(globalDefinitions), genObjectProperty(globalDefinitions)
+      delay(genArrayProperty(globalDefinitions)), delay(genMapProperty(globalDefinitions)), delay(genObjectProperty(globalDefinitions))
+      // todo file property
+    )
+    oneOf[Gen[Property]](
+      globalDefinitions match {
+        case Some(defs) => genRefProperty(defs) :: gens // RefProperties can only be generated if there are global definitions
+        case None => gens
+      }
+    ).flatMap(identity)
+  }
+
+  /**
+   * Generate a [[io.swagger.models.properties.Property Property]], but only ones that represent primitives.
+   * @param globalDefinitions [[io.swagger.models.Model Model]]s defined in the [[io.swagger.models.Swagger Swagger]]
+   *                         document which can be referred to
+   */
+  def genPrimitiveProperty(globalDefinitions: Option[Map[String, Model]] = None): Gen[Property] = {
+    val gens = List[Gen[Property]](
+      genBaseIntegerProperty, genIntegerProperty, genLongProperty,
+      genDecimalProperty, genFloatProperty, genDoubleProperty,
+      genBooleanProperty,
+      genStringProperty, genEmailProperty,
+      genDateProperty, genDateTimeProperty, genUUIDProperty, genByteArrayProperty
       // todo file property
     )
     oneOf[Gen[Property]](
@@ -555,7 +577,7 @@ object SwaggerGenerators {
   }
 
   /**
-   * Generate a [[io.swagger.models.properties.IntegerProperty IntegerProperty]].
+   * Generate an [[io.swagger.models.properties.IntegerProperty IntegerProperty]].
    */
   def genIntegerProperty: Gen[IntegerProperty] = {
     for {
@@ -729,7 +751,7 @@ object SwaggerGenerators {
    */
   def genArrayProperty(globalDefinitions: Option[Map[String, Model]] = None): Gen[ArrayProperty] = {
     for {
-      items <- delay(genProperty(globalDefinitions))
+      items <- delay(genPrimitiveProperty(globalDefinitions))
       property <- new ArrayProperty(items).withCommonFields
       uniqueItems <- arbitrary[Option[Boolean]]
     } yield {
@@ -746,7 +768,7 @@ object SwaggerGenerators {
   def genMapProperty(globalDefinitions: Option[Map[String, Model]] = None): Gen[MapProperty] = {
     for {
       property <- (new MapProperty).withCommonFields
-      additionalProperties <- option(delay(genProperty(globalDefinitions)))
+      additionalProperties <- option(delay(genPrimitiveProperty(globalDefinitions)))
     } yield {
       additionalProperties.foreach(property.setAdditionalProperties)
       property
@@ -761,7 +783,7 @@ object SwaggerGenerators {
   def genObjectProperty(globalDefinitions: Option[Map[String, Model]] = None): Gen[ObjectProperty] = {
     for {
       property <- (new ObjectProperty).withCommonFields
-      properties <- option(mapOf(delay(genProperty(globalDefinitions).map(prop => prop.getName -> prop))).map(_.asJava))
+      properties <- option(mapOf(delay(genPrimitiveProperty(globalDefinitions)).map(prop => prop.getName -> prop)).map(_.asJava))
     } yield {
       properties.foreach(property.setProperties)
       property
