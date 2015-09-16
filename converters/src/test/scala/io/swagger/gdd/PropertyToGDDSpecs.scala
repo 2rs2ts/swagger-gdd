@@ -97,14 +97,14 @@ class PropertyToGDDSpecs extends Specification with ScalaCheck with TestHelpers 
     }
 
     def description = {
-      forAll(genProperty().guarantee(_.getDescription)) { property =>
+      forAll(genProperty()) { property =>
         val schema = SwaggerToGDD.propertyToGDD(property)
         schema.getDescription must beEqualTo(property.getDescription)
       }
     }
 
     def required = {
-      forAll(genProperty().guarantee(_.getRequired)) { property =>
+      forAll(genProperty()) { property =>
         val schema = SwaggerToGDD.propertyToGDD(property)
         schema.getRequired must beEqualTo(property.getRequired)
       }
