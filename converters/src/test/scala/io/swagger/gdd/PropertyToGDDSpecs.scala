@@ -17,7 +17,6 @@ import SwaggerGenerators._
  */
 class PropertyToGDDSpecs extends Specification with ScalaCheck with TestHelpers {
   override def is: SpecStructure = s2"""
-
   SwaggerToGDD.propertyToGDD converts a Swagger Property to a Schema. It should populate the particular fields of the
   Schema based on the type of Swagger Property passed in.
 

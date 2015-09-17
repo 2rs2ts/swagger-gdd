@@ -271,6 +271,7 @@ object SwaggerGenerators {
       pattern <- arbitrary[Option[String]]
     } yield {
       parameter.setType("string")
+      parameter.setRequired(true)
       pattern.foreach(parameter.setPattern)
       parameter
     }
@@ -422,8 +423,11 @@ object SwaggerGenerators {
       name <- arbitrary[String]
       model <- globalDefinitions match {
         case Some(globalDefs) if globalDefs.nonEmpty =>
-          oneOf(genModelImpl(globalDefinitions), genArrayModel(globalDefinitions), genRefModel(globalDefs))
-        case _ => oneOf(genModelImpl(globalDefinitions), genArrayModel(globalDefinitions))
+          oneOf(genModelImpl(globalDefinitions).map(m => {m.setName(name); m}),
+            genArrayModel(globalDefinitions),
+            genRefModel(globalDefs))
+        case _ => oneOf(genModelImpl(globalDefinitions).map(m => {m.setName(name); m}),
+          genArrayModel(globalDefinitions))
       }
     } yield name -> model
   } // todo add genComposedModel when it's implemented
@@ -459,20 +463,29 @@ object SwaggerGenerators {
   }
 
   /**
-   * Generate a [[io.swagger.models.ModelImpl ModelImpl]] which is a JSON primitive definition or a generic object.
-   * @return a model which represents a JSON primitive or a generic object with some `additionalProperties`.
+   * Generate a [[io.swagger.models.ModelImpl ModelImpl]] which is a JSON primitive definition.
+   * @return a model which represents a JSON primitive.
    */
   def genPrimitiveModelImpl: Gen[ModelImpl] = {
     for {
       model <- (new ModelImpl).withCommonFields
-      property <- genProperty().suchThat(!_.isInstanceOf[ArrayProperty])
+      property <- genProperty().suchThat { property =>
+        ! (property.isInstanceOf[ArrayProperty] || property.isInstanceOf[ObjectProperty] ||
+            property.isInstanceOf[MapProperty] || property.isInstanceOf[RefProperty])
+      }
     } yield {
       model.setType(property.getType)
       model.setFormat(property.getFormat)
       property match {
-        case mapProperty: MapProperty => model.setAdditionalProperties(mapProperty.getAdditionalProperties)
-        case _ =>
+        case p: BooleanProperty => Option(p.getDefault).map(_.toString).foreach(model.setDefaultValue)
+        case p: IntegerProperty => Option(p.getDefault).map(_.toString).foreach(model.setDefaultValue)
+        case p: LongProperty => Option(p.getDefault).map(_.toString).foreach(model.setDefaultValue)
+        case p: DoubleProperty => Option(p.getDefault).map(_.toString).foreach(model.setDefaultValue)
+        case p: FloatProperty => Option(p.getDefault).map(_.toString).foreach(model.setDefaultValue)
+        case p: StringProperty => Option(p.getDefault).foreach(model.setDefaultValue)
+        case p: UUIDProperty => Option(p.getDefault).foreach(model.setDefaultValue)
       }
+      model.setSimple(true)
       model
     }
   }

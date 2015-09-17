@@ -182,7 +182,43 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   }
 
   /**
-   * Turn a Swagger Parameter into a GDD Parameter. The (Swagger) Parameter will not be changed.
+   * Turn a Swagger [[io.swagger.models.parameters.Parameter Parameter]] into a GDD [[Parameter]].
+   * The (Swagger) Parameter will not be changed.
+   *
+   * If any of the (Swagger) `Parameter`'s fields are `null`, the resulting `Parameter` will not have its related
+   * fields populated. All language below speaks as though those fields will not be `null`.
+   *
+   * The resulting `Parameter` will have its `id`, `description`, `required`, and `pattern` fields populated regardless
+   * of the subclass of `Parameter`.
+   *
+   * A [[RefParameter]] will result in the `$ref` field being set, and nothing further.
+   *
+   * Any [[AbstractSerializableParameter]] (that is, parameters besides [[BodyParameter]] and [[RefParameter]]) will
+   * have their `type`, `format`, `_enum`, `location`, `_default`, `minimum`, `maximum`, and `items` fields set
+   * (when relevant.) If the `collectionFormat` is `"multi"` then `repeated` will be set to `true`.
+   *
+   * A [[BodyParameter]] will result in fields being set based on the type of [[Model]] in the `schema` field
+   * according to the logic of [[changeSchemaUsingModel]].
+   *
+   * <table>
+   *  <tr><th>GDD `Parameter` field</th><th>Swagger `Parameter` field which determines it</th></tr>
+   *  <tr><td>`id`</td><td>`name`</td></tr>
+   *  <tr><td>`description`</td><td>`description`</td></tr>
+   *  <tr><td>`required`</td><td>`required`</td></tr>
+   *  <tr><td>`type`</td><td>`type` (or manually set)</td></tr>
+   *  <tr><td>`format`</td><td>`format` (or manually set)</td></tr>
+   *  <tr><td>`pattern`</td><td>`pattern`</td></tr>
+   *  <tr><td>`_default`</td><td>`default`</td></tr>
+   *  <tr><td>`_enum`</td><td>`enum`</td></tr>
+   *  <tr><td>`minimum`</td><td>`minimum`</td></tr>
+   *  <tr><td>`maximum`</td><td>`maximum`</td></tr>
+   *  <tr><td>`items`</td><td>`items`</td></tr>
+   *  <tr><td>`repeated`</td><td>`collectionFormat`</td></tr>
+   *  <tr><td>`properties`</td><td>`properties`</td></tr>
+   *  <tr><td>`additionalProperties`</td><td>`additionalProperties`</td></tr>
+   *  <tr><td>`$ref`</td><td>`$ref` (simple ref)</td></tr>
+   * </table>
+   *
    * @param parameter the Parameter to transform
    * @return the converted Parameter
    */
@@ -200,6 +236,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         param.setFormat(p.getFormat)
         param.setEnum(p.getEnum)
         param.setLocation(p.getIn) // GDD doesn't care about this for body params, but we only take the ref from it anyway
+        param.setDefault(p.getDefaultValue)
         Option(p.getMinimum).map(_.toString).foreach(param.setMinimum)
         Option(p.getMaximum).map(_.toString).foreach(param.setMaximum)
         Option(p.getItems).map(propertyToGDD).foreach(param.setItems)
@@ -219,9 +256,9 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
    * If any of the `Property`'s fields are `null`, the resulting `Schema` will not have its related fields populated.
    * All language below speaks as though those fields will not be `null`.
    *
-   * The resulting Schema will have its `id`, `description`, and `required` fields populated regardless of the subclass
-   * of `Property`. Besides [[RefProperty]], everything else will result in the `type` field being populated as well.
-   * `RefProperty` will result in the `$ref` field being populated.
+   * The resulting `Schema` will have its `id`, `description`, and `required` fields populated regardless of the
+   * subclass of `Property`. Besides [[RefProperty]], everything else will result in the `type` field being populated
+   * as well. `RefProperty` will result in the `$ref` field being populated.
    *
    * For [[StringProperty]], [[EmailProperty]], and [[UUIDProperty]], the `pattern` field will be populated.
    * `StringProperty` and `EmailProperty` will result in the `_default` field being populated. `StringProperty` will
@@ -349,9 +386,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
       schema.setType(model.getType)
       schema.setFormat(model.getFormat)
       schema.setDefault(model.getDefaultValue)
-      Option(model.getProperties).map(_.asScala.map {
-        case (propKey, prop) => propKey -> propertyToGDD(prop)
-      }.toMap.asJava).foreach(schema.setProperties)
+      Option(model.getProperties).map(_.asScala.mapValues(propertyToGDD).asJava).foreach(schema.setProperties)
       Option(model.getAdditionalProperties).map(propertyToGDD).foreach(schema.setAdditionalProperties)
     case model: ComposedModel =>
       // todo
@@ -369,6 +404,10 @@ object SwaggerToGDD {
    */
   def swaggerToGDD(swagger: Swagger): GoogleDiscoveryDocument = {
     new SwaggerToGDD().swaggerToGDD(swagger)
+  }
+
+  def parameterToGDD(parameter: io.swagger.models.parameters.Parameter): Parameter = {
+    new SwaggerToGDD().parameterToGDD(parameter)
   }
 
   def propertyToGDD(property: Property): Schema = {
