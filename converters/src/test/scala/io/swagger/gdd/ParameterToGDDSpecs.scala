@@ -1,14 +1,12 @@
 package io.swagger.gdd
 
+import io.swagger.gdd.SwaggerGenerators._
 import io.swagger.gdd.models.Parameter
 import io.swagger.models.parameters
-import io.swagger.models.parameters.AbstractSerializableParameter
 import org.scalacheck.Gen
 import org.scalacheck.Prop._
 import org.specs2.specification.core.SpecStructure
 import org.specs2.{ScalaCheck, Specification}
-
-import SwaggerGenerators._
 
 /**
  * Tests [[SwaggerToGDD.parameterToGDD)]].
@@ -71,19 +69,27 @@ class ParameterToGDDSpecs extends Specification with ScalaCheck with TestHelpers
   }
 
   trait AbstractSerializableParameters {
-    def parameterGenerator = Gen.oneOf[AbstractSerializableParameter[_]](
-      genPathParameter, genQueryParameter, genHeaderParameter, genCookieParameter, genFormParameter
-    )
+    def parameterGenerator = genAbstractSerializableParameter
 
-    def `type` = pending
-    def format = pending
-    def enum = pending
-    def location = pending
-    def default = pending
-    def minimum = pending
-    def maximum = pending
-    def items = pending
-    def repeated = pending
+    def `type` = testSetBy(parameterGenerator)(_.getType)(_.getType)
+    def format = testSetBy(parameterGenerator)(_.getFormat)(_.getFormat)
+    def enum = testSetBy(parameterGenerator)(_.getEnum)(_.getEnum)
+    def location = testSetBy(parameterGenerator)(_.getLocation)(_.getIn)
+    def default = testSetBy(parameterGenerator)(_.getDefault)(_.getDefaultValue)
+    def minimum = testSetBy(parameterGenerator)(_.getMinimum)(p => Option(p.getMinimum).map(_.toString).orNull)
+    def maximum = testSetBy(parameterGenerator)(_.getMinimum)(p => Option(p.getMaximum).map(_.toString).orNull)
+    def items = testSetBy(parameterGenerator)(_.getItems)(p => Option(p.getItems).map(SwaggerToGDD.propertyToGDD).orNull)
+    def repeated = {
+      forAll(parameterGenerator) { parameter =>
+        Option(parameter.getCollectionFormat) match {
+          case Some("multi") => (SwaggerToGDD.parameterToGDD(parameter).getRepeated: Boolean) must beTrue
+          case _ => Option(SwaggerToGDD.parameterToGDD(parameter).getRepeated) match {
+            case Some(b) => (b: Boolean) must beFalse
+            case None => ok
+          }
+        }
+      }
+    }
   }
   object AbstractSerializableParameters extends AbstractSerializableParameters
 

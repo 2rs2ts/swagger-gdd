@@ -263,6 +263,13 @@ object SwaggerGenerators {
   }
 
   /**
+   * Generate an [[AbstractSerializableParameter]].
+   */
+  def genAbstractSerializableParameter: Gen[AbstractSerializableParameter[_]] = oneOf(
+    genPathParameter, genQueryParameter, genHeaderParameter, genCookieParameter, genFormParameter
+  )
+
+  /**
    * Generate a [[io.swagger.models.parameters.PathParameter PathParameter]].
    */
   def genPathParameter: Gen[PathParameter] = {
@@ -284,15 +291,110 @@ object SwaggerGenerators {
     for {
       parameter <- (new QueryParameter).withCommonFields
       required <- arbitrary[Option[Boolean]]
-      model <- genPrimitiveModelImpl
-      pattern <- Option(model.getType) match {
+      property <- genPrimitiveProperty()
+      makeArray <- arbitrary[Boolean]
+      collectionFormat <- option(oneOf("csv", "ssv", "tsv", "pipes", "multi"))
+      pattern <- Option(property.getType) match {
         case Some("string") => arbitrary[Option[String]]
         case _ => const(None)
       }
     } yield {
       required.foreach(parameter.setRequired)
-      parameter.setType(model.getType)
-      parameter.setFormat(model.getFormat)
+      if (makeArray) {
+        parameter.setType("array")
+        parameter.setItems(property)
+        collectionFormat.foreach(parameter.setCollectionFormat)
+      } else {
+        parameter.setType(property.getType)
+        parameter.setFormat(property.getFormat)
+      }
+      pattern.foreach(parameter.setPattern)
+      parameter
+    }
+  }
+
+  /**
+   * Generate a [[io.swagger.models.parameters.HeaderParameter HeaderParameter]].
+   */
+  def genHeaderParameter: Gen[HeaderParameter] = {
+    for {
+      parameter <- (new HeaderParameter).withCommonFields
+      required <- arbitrary[Option[Boolean]]
+      property <- genPrimitiveProperty()
+      makeArray <- arbitrary[Boolean]
+      collectionFormat <- option(oneOf("csv", "ssv", "tsv", "pipes"))
+      pattern <- Option(property.getType) match {
+        case Some("string") => arbitrary[Option[String]]
+        case _ => const(None)
+      }
+    } yield {
+      required.foreach(parameter.setRequired)
+      if (makeArray) {
+        parameter.setType("array")
+        parameter.setItems(property)
+        collectionFormat.foreach(parameter.setCollectionFormat)
+      } else {
+        parameter.setType(property.getType)
+        parameter.setFormat(property.getFormat)
+      }
+      pattern.foreach(parameter.setPattern)
+      parameter
+    }
+  }
+
+  /**
+   * Generate a [[io.swagger.models.parameters.FormParameter FormParameter]].
+   */
+  def genFormParameter: Gen[FormParameter] = {
+    for {
+      parameter <- (new FormParameter).withCommonFields
+      required <- arbitrary[Option[Boolean]]
+      property <- genPrimitiveProperty()
+      makeArray <- arbitrary[Boolean]
+      collectionFormat <- option(oneOf("csv", "ssv", "tsv", "pipes", "multi"))
+      pattern <- Option(property.getType) match {
+        case Some("string") => arbitrary[Option[String]]
+        case _ => const(None)
+      }
+    } yield {
+      required.foreach(parameter.setRequired)
+      if (makeArray) {
+        parameter.setType("array")
+        parameter.setItems(property)
+        collectionFormat.foreach(parameter.setCollectionFormat)
+      } else {
+        parameter.setType(property.getType)
+        parameter.setFormat(property.getFormat)
+      }
+      pattern.foreach(parameter.setPattern)
+      parameter
+    }
+  }
+
+  /**
+   * Generate a [[io.swagger.models.parameters.CookieParameter CookieParameter]].
+   */
+  def genCookieParameter: Gen[CookieParameter] = {
+    for {
+      parameter <- (new CookieParameter).withCommonFields
+      required <- arbitrary[Option[Boolean]]
+      property <- genPrimitiveProperty()
+      makeArray <- arbitrary[Boolean]
+      collectionFormat <- option(oneOf("csv", "ssv", "tsv", "pipes"))
+      pattern <- Option(property.getType) match {
+        case Some("string") => arbitrary[Option[String]]
+        case _ => const(None)
+      }
+    } yield {
+      required.foreach(parameter.setRequired)
+      if (makeArray) {
+        parameter.setType("array")
+        parameter.setItems(property)
+        collectionFormat.foreach(parameter.setCollectionFormat)
+      } else {
+        parameter.setType(property.getType)
+        parameter.setFormat(property.getFormat)
+      }
       pattern.foreach(parameter.setPattern)
       parameter
     }
@@ -311,69 +413,6 @@ object SwaggerGenerators {
     } yield {
       required.foreach(parameter.setRequired)
       parameter.setSchema(schema)
-      parameter
-    }
-  }
-
-  /**
-   * Generate a [[io.swagger.models.parameters.HeaderParameter HeaderParameter]].
-   */
-  def genHeaderParameter: Gen[HeaderParameter] = {
-    for {
-      parameter <- (new HeaderParameter).withCommonFields
-      required <- arbitrary[Option[Boolean]]
-      model <- genPrimitiveModelImpl
-      pattern <- Option(model.getType) match {
-        case Some("string") => arbitrary[Option[String]]
-        case _ => const(None)
-      }
-    } yield {
-      required.foreach(parameter.setRequired)
-      parameter.setType(model.getType)
-      parameter.setFormat(model.getFormat)
-      pattern.foreach(parameter.setPattern)
-      parameter
-    }
-  }
-
-  /**
-   * Generate a [[io.swagger.models.parameters.FormParameter FormParameter]].
-   */
-  def genFormParameter: Gen[FormParameter] = {
-    for {
-      parameter <- (new FormParameter).withCommonFields
-      required <- arbitrary[Option[Boolean]]
-      model <- genPrimitiveModelImpl
-      pattern <- Option(model.getType) match {
-        case Some("string") => arbitrary[Option[String]]
-        case _ => const(None)
-      }
-    } yield {
-      required.foreach(parameter.setRequired)
-      parameter.setType(model.getType)
-      parameter.setFormat(model.getFormat)
-      pattern.foreach(parameter.setPattern)
-      parameter
-    }
-  }
-
-  /**
-   * Generate a [[io.swagger.models.parameters.CookieParameter CookieParameter]].
-   */
-  def genCookieParameter: Gen[CookieParameter] = {
-    for {
-      parameter <- (new CookieParameter).withCommonFields
-      required <- arbitrary[Option[Boolean]]
-      model <- genPrimitiveModelImpl
-      pattern <- Option(model.getType) match {
-        case Some("string") => arbitrary[Option[String]]
-        case _ => const(None)
-      }
-    } yield {
-      required.foreach(parameter.setRequired)
-      parameter.setType(model.getType)
-      parameter.setFormat(model.getFormat)
-      pattern.foreach(parameter.setPattern)
       parameter
     }
   }
@@ -438,7 +477,7 @@ object SwaggerGenerators {
    *                         document which can be referred to
    */
   def genModelImpl(globalDefinitions: Option[Map[String, Model]] = None): Gen[ModelImpl] = {
-    oneOf(genObjectModelImpl(globalDefinitions), genPrimitiveModelImpl)
+    oneOf(genObjectModelImpl(globalDefinitions), genPrimitiveModelImpl(globalDefinitions))
   }
 
   /**
@@ -464,15 +503,14 @@ object SwaggerGenerators {
 
   /**
    * Generate a [[io.swagger.models.ModelImpl ModelImpl]] which is a JSON primitive definition.
+   * @param globalDefinitions [[io.swagger.models.Model Model]]s defined in the [[io.swagger.models.Swagger Swagger]]
+   *                         document which can be referred to
    * @return a model which represents a JSON primitive.
    */
-  def genPrimitiveModelImpl: Gen[ModelImpl] = {
+  def genPrimitiveModelImpl(globalDefinitions: Option[Map[String, Model]] = None): Gen[ModelImpl] = {
     for {
       model <- (new ModelImpl).withCommonFields
-      property <- genProperty().suchThat { property =>
-        ! (property.isInstanceOf[ArrayProperty] || property.isInstanceOf[ObjectProperty] ||
-            property.isInstanceOf[MapProperty] || property.isInstanceOf[RefProperty])
-      }
+      property <- genPrimitiveProperty(globalDefinitions)
     } yield {
       model.setType(property.getType)
       model.setFormat(property.getFormat)
@@ -484,6 +522,7 @@ object SwaggerGenerators {
         case p: FloatProperty => Option(p.getDefault).map(_.toString).foreach(model.setDefaultValue)
         case p: StringProperty => Option(p.getDefault).foreach(model.setDefaultValue)
         case p: UUIDProperty => Option(p.getDefault).foreach(model.setDefaultValue)
+        case _ =>
       }
       model.setSimple(true)
       model
@@ -570,6 +609,7 @@ object SwaggerGenerators {
     )
     oneOf[Gen[Property]](
       globalDefinitions match {
+          // todo only primitive types in the refs....
         case Some(defs) => genRefProperty(defs) :: gens // RefProperties can only be generated if there are global definitions
         case None => gens
       }

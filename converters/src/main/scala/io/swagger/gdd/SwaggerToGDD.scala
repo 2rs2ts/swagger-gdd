@@ -240,8 +240,8 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         Option(p.getMinimum).map(_.toString).foreach(param.setMinimum)
         Option(p.getMaximum).map(_.toString).foreach(param.setMaximum)
         Option(p.getItems).map(propertyToGDD).foreach(param.setItems)
-        Option(p.getCollectionFormat).foreach {
-          case "multi" => param.setRepeated(true)
+        Option(p.getCollectionFormat) match {
+          case Some("multi") => param.setRepeated(true)
           case _ =>
         }
       case p: BodyParameter =>
