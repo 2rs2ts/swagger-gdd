@@ -206,17 +206,17 @@ class PropertyToGDDSpecs extends Specification with ScalaCheck with TestHelpers 
 
   object ArrayProperties {
     def `type` = testSetTo(genArrayProperty())(_.getType)("array")
-    def items = testSetBy(genArrayProperty())(_.getItems)(p => SwaggerToGDD.propertyToGDD(p.getItems)).pendingUntilFixed("need equals")
+    def items = testSetBy(genArrayProperty())(_.getItems)(p => SwaggerToGDD.propertyToGDD(p.getItems)).pendingUntilFixed("setting required to null breaks this")
   }
 
   object MapProperties {
     def `type` = testSetTo(genMapProperty())(_.getType)("object")
-    def additionalProperties = testSetBy(genMapProperty().guarantee(_.getAdditionalProperties))(_.getAdditionalProperties)(p => SwaggerToGDD.propertyToGDD(p.getAdditionalProperties)).pendingUntilFixed("need equals")
+    def additionalProperties = testSetBy(genMapProperty().guarantee(_.getAdditionalProperties))(_.getAdditionalProperties)(p => SwaggerToGDD.propertyToGDD(p.getAdditionalProperties))
   }
 
   object ObjectProperties {
     def `type` = testSetTo(genObjectProperty())(_.getType)("object")
-    def properties = testSetBy(genObjectProperty().guarantee(_.getProperties))(_.getProperties)(p => p.getProperties.asScala.mapValues(SwaggerToGDD.propertyToGDD).asJava).pendingUntilFixed("need equals")
+    def properties = testSetBy(genObjectProperty().guarantee(_.getProperties))(_.getProperties)(p => p.getProperties.asScala.mapValues(SwaggerToGDD.propertyToGDD).asJava)
   }
 
   object RefProperties {
