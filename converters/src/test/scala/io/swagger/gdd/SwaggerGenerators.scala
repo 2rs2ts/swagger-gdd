@@ -999,13 +999,18 @@ object SwaggerGenerators {
 
   /**
    * Generate a valid JSON value. It can be an Int, a Double, a Boolean, a List of other JSON values, a Map of String
-   * to other JSON values, or null.
+   * to other JSON values, or null. No nested structures.
    */
   def genJSONValue: Gen[Any] = oneOf(
     arbitrary[Int], arbitrary[Double], arbitrary[Boolean], const(null),
-    listOf(genJSONValue),
-    mapOf(arbitrary[String].flatMap(key => genJSONValue.map(key -> _)))
+    listOf(genPrimitiveJSONValue),
+    mapOf(arbitrary[String].flatMap(key => genPrimitiveJSONValue.map(key -> _)))
   )
+
+  /**
+   * Generate a valid JSON primitive value. It can be an Int, a Double, a Boolean, or null.
+   */
+  def genPrimitiveJSONValue: Gen[Any] = oneOf(arbitrary[Int], arbitrary[Double], arbitrary[Boolean], const(null))
 
   /**
    * Generate a version string, which is delimited by periods (.), using only digits. Versions can contain other
@@ -1025,7 +1030,7 @@ object SwaggerGenerators {
     for {
       scheme <- oneOf("http", "https")
       host <- genNonEmptyAlphaNumStr
-      port <- oneOf(arbitrary[Int].suchThat(_ != 0).map(math.abs), const(-1))
+      port <- chooseNum(1, Int.MaxValue, -1)
       file <- arbitrary[String]
     } yield new URL(scheme, host, port, file)
   }

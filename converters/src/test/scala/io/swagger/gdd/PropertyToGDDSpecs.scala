@@ -1,5 +1,11 @@
 package io.swagger.gdd
 
+import scala.collection.JavaConverters._
+
+import io.swagger.gdd.models.Schema
+import io.swagger.models.properties
+import org.scalacheck.Arbitrary._
+import org.scalacheck.Gen
 import org.scalacheck.Prop.{apply => _, _}
 import org.specs2.specification.core.SpecStructure
 import org.specs2.{ScalaCheck, Specification}
@@ -88,128 +94,133 @@ class PropertyToGDDSpecs extends Specification with ScalaCheck with TestHelpers 
     $$ref should be set by the Property's $$ref (#/definitions/{id})            ${RefProperties.$ref}
   """
 
+  def testSetBy[T, P <: properties.Property](g: Gen[P])(t: Schema => T)(p: P => T) = {
+    forAll(g) { property =>
+      val schema = SwaggerToGDD.propertyToGDD(property)
+      t(schema) must beEqualTo(p(property))
+    }
+  }
+
+  def testSetTo[T, P <: properties.Property](g: Gen[P])(t: Schema => T)(expected: T) = {
+    forAll(g) { property =>
+      val schema = SwaggerToGDD.propertyToGDD(property)
+      t(schema) must beEqualTo(expected)
+    }
+  }
+
   object AllProperties {
-    def id = {
-      forAll(genProperty()) { property =>
-        val schema = SwaggerToGDD.propertyToGDD(property)
-        schema.getId must beEqualTo(property.getName)
-      }
-    }
-
-    def description = {
-      forAll(genProperty()) { property =>
-        val schema = SwaggerToGDD.propertyToGDD(property)
-        schema.getDescription must beEqualTo(property.getDescription)
-      }
-    }
-
-    def required = {
-      forAll(genProperty()) { property =>
-        val schema = SwaggerToGDD.propertyToGDD(property)
-        schema.getRequired must beEqualTo(property.getRequired)
-      }
-    }
+    def id = testSetBy(genProperty())(_.getId)(_.getName)
+    def description = testSetBy(genProperty())(_.getDescription)(_.getDescription)
+    def required = testSetBy(genProperty())(_.getRequired)(_.getRequired)
   }
 
   object BooleanProperties {
-    def `type` = pending
+    def `type` = testSetTo(genBooleanProperty)(_.getType)("boolean")
   }
 
   object StringProperties {
-    def `type` = pending
-    def format = pending
-    def pattern = pending
-    def enum = pending
-    def default = pending
+    def `type` = testSetTo(genStringProperty)(_.getType)("string")
+    def format = {
+      forAll(genStringProperty, arbitrary[String].suchThat(_ != "byte")) { (property, fakeFormat) =>
+        property.setFormat("byte")
+        val byteFormatSchema = SwaggerToGDD.propertyToGDD(property)
+        property.setFormat(fakeFormat)
+        val nonByteFormatSchema = SwaggerToGDD.propertyToGDD(property)
+        (byteFormatSchema.getFormat must beEqualTo("byte")) and (nonByteFormatSchema.getFormat must beNull)
+      }
+    }
+    def pattern = testSetBy(genStringProperty)(_.getPattern)(_.getPattern)
+    def enum = testSetBy(genStringProperty)(_.getEnum)(_.getEnum)
+    def default = testSetBy(genStringProperty)(_.getDefault)(_.getDefault)
   }
 
   object EmailProperties {
-    def `type` = pending
-    def pattern = pending
-    def default = pending
+    def `type` = testSetTo(genEmailProperty)(_.getType)("string")
+    def pattern = testSetBy(genEmailProperty)(_.getPattern)(_.getPattern)
+    def default = testSetBy(genEmailProperty)(_.getDefault)(_.getDefault)
   }
 
   object UUIDProperties {
-    def `type` = pending
-    def pattern = pending
+    def `type` = testSetTo(genUUIDProperty)(_.getType)("string")
+    def pattern = testSetBy(genUUIDProperty)(_.getPattern)(_.getPattern)
   }
 
   object DateProperties {
-    def `type` = pending
-    def format = pending
+    def `type` = testSetTo(genDateProperty)(_.getType)("string")
+    def format = testSetTo(genDateProperty)(_.getFormat)("date")
   }
 
   object DateTimeProperties {
-    def `type` = pending
-    def format = pending
+    def `type` = testSetTo(genDateTimeProperty)(_.getType)("string")
+    def format = testSetTo(genDateTimeProperty)(_.getFormat)("date-time")
   }
 
   object ByteArrayProperties {
-    def `type` = pending
-    def format = pending
+    def `type` = testSetTo(genByteArrayProperty)(_.getType)("string")
+    def format = testSetTo(genByteArrayProperty)(_.getFormat)("byte")
   }
 
   object IntegerProperties {
-    def `type` = pending
-    def format = pending
-    def minimum = pending
-    def maximum = pending
-    def default = pending
+    def `type` = testSetTo(genIntegerProperty)(_.getType)("integer")
+    def format = testSetTo(genIntegerProperty)(_.getFormat)("int32")
+    def minimum = testSetBy(genIntegerProperty)(_.getMinimum)(p => Option(p.getMinimum).map(_.toString).orNull)
+    def maximum = testSetBy(genIntegerProperty)(_.getMaximum)(p => Option(p.getMaximum).map(_.toString).orNull)
+    def default = testSetBy(genIntegerProperty)(_.getDefault)(p => Option(p.getDefault).map(_.toString).orNull)
   }
 
   object LongProperties {
-    def `type` = pending
-    def format = pending
-    def minimum = pending
-    def maximum = pending
-    def default = pending
+    def `type` = testSetTo(genLongProperty)(_.getType)("string")
+    def format = testSetTo(genLongProperty)(_.getFormat)("int64")
+    def minimum = testSetBy(genLongProperty)(_.getMinimum)(p => Option(p.getMinimum).map(_.toString).orNull)
+    def maximum = testSetBy(genLongProperty)(_.getMaximum)(p => Option(p.getMaximum).map(_.toString).orNull)
+    def default = testSetBy(genLongProperty)(_.getDefault)(p => Option(p.getDefault).map(_.toString).orNull)
   }
 
   object BaseIntegerProperties {
-    def `type` = pending
-    def minimum = pending
-    def maximum = pending
+    def `type` = testSetTo(genBaseIntegerProperty)(_.getType)("integer")
+    def minimum = testSetBy(genBaseIntegerProperty)(_.getMinimum)(p => Option(p.getMinimum).map(_.toString).orNull)
+    def maximum = testSetBy(genBaseIntegerProperty)(_.getMaximum)(p => Option(p.getMaximum).map(_.toString).orNull)
   }
 
   object DoubleProperties {
-    def `type` = pending
-    def format = pending
-    def minimum = pending
-    def maximum = pending
-    def default = pending
+    def `type` = testSetTo(genDoubleProperty)(_.getType)("number")
+    def format = testSetTo(genDoubleProperty)(_.getFormat)("double")
+    def minimum = testSetBy(genDoubleProperty)(_.getMinimum)(p => Option(p.getMinimum).map(_.toString).orNull)
+    def maximum = testSetBy(genDoubleProperty)(_.getMaximum)(p => Option(p.getMaximum).map(_.toString).orNull)
+    def default = testSetBy(genDoubleProperty)(_.getDefault)(p => Option(p.getDefault).map(_.toString).orNull)
   }
 
   object FloatProperties {
-    def `type` = pending
-    def format = pending
-    def minimum = pending
-    def maximum = pending
-    def default = pending
+    def `type` = testSetTo(genFloatProperty)(_.getType)("number")
+    def format = testSetTo(genFloatProperty)(_.getFormat)("float")
+    def minimum = testSetBy(genFloatProperty)(_.getMinimum)(p => Option(p.getMinimum).map(_.toString).orNull)
+    def maximum = testSetBy(genFloatProperty)(_.getMaximum)(p => Option(p.getMaximum).map(_.toString).orNull)
+    def default = testSetBy(genFloatProperty)(_.getDefault)(p => Option(p.getDefault).map(_.toString).orNull)
   }
 
   object DecimalProperties {
-    def `type` = pending
-    def minimum = pending
-    def maximum = pending
+    def `type` = testSetTo(genDecimalProperty)(_.getType)("number")
+    def minimum = testSetBy(genDecimalProperty)(_.getMinimum)(p => Option(p.getMinimum).map(_.toString).orNull)
+    def maximum = testSetBy(genDecimalProperty)(_.getMaximum)(p => Option(p.getMaximum).map(_.toString).orNull)
   }
 
   object ArrayProperties {
-    def `type` = pending
-    def items = pending
+    def `type` = testSetTo(genArrayProperty())(_.getType)("array")
+    def items = testSetBy(genArrayProperty())(_.getItems)(p => SwaggerToGDD.propertyToGDD(p.getItems)).pendingUntilFixed("need equals")
   }
 
   object MapProperties {
-    def `type` = pending
-    def additionalProperties = pending
+    def `type` = testSetTo(genMapProperty())(_.getType)("object")
+    def additionalProperties = testSetBy(genMapProperty().guarantee(_.getAdditionalProperties))(_.getAdditionalProperties)(p => SwaggerToGDD.propertyToGDD(p.getAdditionalProperties)).pendingUntilFixed("need equals")
   }
 
   object ObjectProperties {
-    def `type` = pending
-    def properties = pending
+    def `type` = testSetTo(genObjectProperty())(_.getType)("object")
+    def properties = testSetBy(genObjectProperty().guarantee(_.getProperties))(_.getProperties)(p => p.getProperties.asScala.mapValues(SwaggerToGDD.propertyToGDD).asJava).pendingUntilFixed("need equals")
   }
 
   object RefProperties {
-    def $ref = pending
+    def $ref = testSetBy(genSchema().map(Map(_)).flatMap(genRefProperty))(_.get$ref())(_.getSimpleRef)
   }
 
   // todo FileProperties
