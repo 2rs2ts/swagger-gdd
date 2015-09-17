@@ -206,7 +206,7 @@ class PropertyToGDDSpecs extends Specification with ScalaCheck with TestHelpers 
 
   object ArrayProperties {
     def `type` = testSetTo(genArrayProperty())(_.getType)("array")
-    def items = testSetBy(genArrayProperty())(_.getItems)(p => SwaggerToGDD.propertyToGDD(p.getItems)).pendingUntilFixed("setting required to null breaks this")
+    def items = testSetBy(genArrayProperty())(_.getItems)(p => SwaggerToGDD.propertyToGDD(p.getItems))
   }
 
   object MapProperties {

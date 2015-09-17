@@ -154,7 +154,6 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         // non-ref responses have to get added as schemas since GDD doesn't allow non-ref responses
         val prop = propertyToGDD(property)
         prop.setId(s"${method.getId}Response")
-        prop.setRequired(null) // required seems awkward here
         gdd.getSchemas.put(prop.getId, prop)
         method.setResponse(modelFactory.newSchemaRef(prop.getId))
     }
@@ -203,10 +202,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         param.setLocation(p.getIn) // GDD doesn't care about this for body params, but we only take the ref from it anyway
         Option(p.getMinimum).map(_.toString).foreach(param.setMinimum)
         Option(p.getMaximum).map(_.toString).foreach(param.setMaximum)
-        Option(p.getItems).map(propertyToGDD).map { prop =>
-          prop.setRequired(null)  // required seems awkward here
-          prop
-        }.foreach(param.setItems)
+        Option(p.getItems).map(propertyToGDD).foreach(param.setItems)
         Option(p.getCollectionFormat).foreach {
           case "multi" => param.setRepeated(true)
           case _ =>
@@ -323,10 +319,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         }
       case prop: ArrayProperty =>
         schema.setType("array")
-        Option(prop.getItems).map(propertyToGDD).map { p =>
-          p.setRequired(null) // required seems awkward here
-          p
-        }.foreach(schema.setItems)
+        Option(prop.getItems).map(propertyToGDD).foreach(schema.setItems)
       case prop: MapProperty =>
         schema.setType("object")
         Option(prop.getAdditionalProperties).map(propertyToGDD).foreach(schema.setAdditionalProperties)
