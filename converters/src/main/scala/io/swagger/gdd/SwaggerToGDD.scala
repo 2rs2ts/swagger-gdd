@@ -154,7 +154,11 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         // non-ref responses have to get added as schemas since GDD doesn't allow non-ref responses
         val prop = propertyToGDD(property)
         prop.setId(s"${method.getId}Response")
-        gdd.getSchemas.put(prop.getId, prop)
+        Option(gdd.getSchemas) match {
+          case Some(schemas) => schemas.put(prop.getId, prop)
+          case None =>
+            gdd.setSchemas(Map(prop.getId -> prop).asJava)
+        }
         method.setResponse(modelFactory.newSchemaRef(prop.getId))
     }
     Option(op.getParameters).map(_.asScala.toList).foreach { parameters =>
