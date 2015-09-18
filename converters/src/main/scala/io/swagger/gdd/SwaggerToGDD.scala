@@ -188,10 +188,8 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
    * If any of the (Swagger) `Parameter`'s fields are `null`, the resulting `Parameter` will not have its related
    * fields populated. All language below speaks as though those fields will not be `null`.
    *
-   * The resulting `Parameter` will have its `id`, `description`, `required`, and `pattern` fields populated regardless
-   * of the subclass of `Parameter`.
-   *
-   * A [[RefParameter]] will result in the `$ref` field being set, and nothing further.
+   * The resulting `Parameter` will have its `id`, `description`, `required`, and `pattern` fields populated unless it
+   * is a [[RefParameter]]. A `RefParameter` will result in the `$ref` field being set, and nothing further.
    *
    * Any [[AbstractSerializableParameter]] (that is, parameters besides [[BodyParameter]] and [[RefParameter]]) will
    * have their `type`, `format`, `_enum`, `location`, `_default`, `minimum`, `maximum`, and `items` fields set
@@ -224,28 +222,31 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
    */
   def parameterToGDD(parameter: io.swagger.models.parameters.Parameter): Parameter = {
     val param = modelFactory.newParameter()
-    param.setId(parameter.getName)
-    param.setDescription(parameter.getDescription)
-    param.setRequired(parameter.getRequired)
-    param.setPattern(parameter.getPattern)
     parameter match {
       case p: RefParameter =>
         param.set$ref(p.getSimpleRef)
-      case p: AbstractSerializableParameter[_] =>
-        param.setType(p.getType)
-        param.setFormat(p.getFormat)
-        param.setEnum(p.getEnum)
-        param.setLocation(p.getIn) // GDD doesn't care about this for body params, but we only take the ref from it anyway
-        param.setDefault(p.getDefaultValue)
-        Option(p.getMinimum).map(_.toString).foreach(param.setMinimum)
-        Option(p.getMaximum).map(_.toString).foreach(param.setMaximum)
-        Option(p.getItems).map(propertyToGDD).foreach(param.setItems)
-        Option(p.getCollectionFormat) match {
-          case Some("multi") => param.setRepeated(true)
-          case _ =>
+      case _ =>
+        param.setId(parameter.getName)
+        param.setDescription(parameter.getDescription)
+        param.setRequired(parameter.getRequired)
+        param.setPattern(parameter.getPattern)
+        parameter match {
+          case p: AbstractSerializableParameter[_] =>
+            param.setType(p.getType)
+            param.setFormat(p.getFormat)
+            param.setEnum(p.getEnum)
+            param.setLocation(p.getIn) // GDD doesn't care about this for body params, but we only take the ref from it anyway
+            param.setDefault(p.getDefaultValue)
+            Option(p.getMinimum).map(_.toString).foreach(param.setMinimum)
+            Option(p.getMaximum).map(_.toString).foreach(param.setMaximum)
+            Option(p.getItems).map(propertyToGDD).foreach(param.setItems)
+            Option(p.getCollectionFormat) match {
+              case Some("multi") => param.setRepeated(true)
+              case _ =>
+            }
+          case p: BodyParameter =>
+            Option(p.getSchema).foreach(changeSchemaUsingModel(param, _))
         }
-      case p: BodyParameter =>
-        Option(p.getSchema).foreach(changeSchemaUsingModel(param, _))
     }
     param
   }

@@ -40,7 +40,7 @@ object SwaggerGenerators {
       definitions <- option(mapOf(genSchema()))
       parameters <- option(mapOf(
         oneOf[parameters.Parameter](
-          genQueryParameter, genBodyParameter(definitions), genHeaderParameter, genFormParameter, genCookieParameter
+          genQueryParameter, genBodyParameter(definitions)(), genHeaderParameter, genFormParameter, genCookieParameter
         ).map(p => p.getName -> p)))
       securityDefinitions <- option(mapOf(arbitrary[String].flatMap(k => genSecuritySchemeDefinition.map(k -> _))))
       securityRequirements <- option(someOf(securityDefinitions.map(_.values).getOrElse(Nil)).flatMap(l => sequence(l.map(genSecurityRequirement))))
@@ -247,12 +247,12 @@ object SwaggerGenerators {
     def genExclusiveParameters = globalParameters match {
       case Some(globalParams) if globalParams.nonEmpty =>
         oneOf(
-          chooseNum(0, 1).flatMap(listOfN(_, oneOf(genBodyParameter(globalDefinitions), genRefParameter[BodyParameter](globalParams)))),
+          chooseNum(0, 1).flatMap(listOfN(_, oneOf(genBodyParameter(globalDefinitions)(), genRefParameter[BodyParameter](globalParams)))),
           listOf(oneOf(genFormParameter, genRefParameter[FormParameter](globalParams)))
         )
       case _ =>
         oneOf(
-          chooseNum(0, 1).flatMap(listOfN(_, genBodyParameter(globalDefinitions))),
+          chooseNum(0, 1).flatMap(listOfN(_, genBodyParameter(globalDefinitions)())),
           listOf(genFormParameter)
         )
     }
@@ -404,12 +404,15 @@ object SwaggerGenerators {
    * Generate a [[io.swagger.models.parameters.BodyParameter BodyParameter]].
    * @param globalDefinitions [[io.swagger.models.Model Model]]s defined in the [[io.swagger.models.Swagger Swagger]]
    *                         document which can be referred to
+   * @param schemaGenerator a generator which produces a [[Model]]. By default, it will just use [[genSchema]], but
+   *                        it can be changed to produce some other `Model` type.
    */
-  def genBodyParameter(globalDefinitions: Option[Map[String, Model]] = None): Gen[BodyParameter] = {
+  def genBodyParameter(globalDefinitions: Option[Map[String, Model]] = None)
+                      (schemaGenerator: Option[Map[String, Model]] => Gen[Model] = genSchema(_).map(_._2)): Gen[BodyParameter] = {
     for {
       parameter <- (new BodyParameter).withCommonFields
       required <- arbitrary[Option[Boolean]]
-      (_, schema) <- genSchema(globalDefinitions)
+      schema <- schemaGenerator(globalDefinitions)
     } yield {
       required.foreach(parameter.setRequired)
       parameter.setSchema(schema)
@@ -427,7 +430,7 @@ object SwaggerGenerators {
   // todo this is pretty janky, and if it exhausts is that gonna fail the generation?
   def genRefParameter[T <: parameters.Parameter](globalParameters: Map[String, parameters.Parameter])(implicit ct: ClassTag[T]): Gen[RefParameter] = {
     for {
-      ref <- oneOf(globalParameters.filter { case (_, p) => p.getClass == ct.runtimeClass }.keys.toSeq.map(k => s"#/parameters/$k"))
+      ref <- oneOf(globalParameters.filter { case (_, p) => ct.runtimeClass.isAssignableFrom(p.getClass) }.keys.toSeq)
       p <- new RefParameter(ref).withCommonFields
     } yield p
   }
@@ -851,7 +854,7 @@ object SwaggerGenerators {
   def genRefProperty(globalDefinitions: Map[String, Model]): Gen[RefProperty] = {
     for {
       ref <- oneOf(globalDefinitions.keys.toSeq)
-      property <- new RefProperty(s"#/definitions/$ref").withCommonFields
+      property <- new RefProperty(ref).withCommonFields
     } yield property
   }
   /**

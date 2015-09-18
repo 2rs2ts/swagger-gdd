@@ -1,8 +1,10 @@
 package io.swagger.gdd
 
+import scala.collection.JavaConverters._
+
 import io.swagger.gdd.SwaggerGenerators._
 import io.swagger.gdd.models.Parameter
-import io.swagger.models.parameters
+import io.swagger.models.{Model, parameters}
 import org.scalacheck.Gen
 import org.scalacheck.Prop._
 import org.specs2.specification.core.SpecStructure
@@ -16,7 +18,7 @@ class ParameterToGDDSpecs extends Specification with ScalaCheck with TestHelpers
   SwaggerToGDD.parameterToGDD converts a Swagger Parameter to a GDD Parameter. It should populate the particular fields
   of the GDD Parameter based on the type of Swagger Parameter passed in.
 
-  For all Parameter types:
+  For all Parameter types except RefParameters:
     id should be set by the Parameter's name                                  ${AllParameters.id}
     description should be set by the Parameter's description                  ${AllParameters.description}
     required should be set by the Parameter's required                        ${AllParameters.required}
@@ -45,6 +47,7 @@ class ParameterToGDDSpecs extends Specification with ScalaCheck with TestHelpers
       $$ref should be set by the schema's $$ref (simple ref)                  ${BodyParameters.refModel$ref}
   For RefParameters:
     $$ref should be set by the Parameter's $$ref (simple ref)                 ${RefParameters.$ref}
+    nothing else should be set                                                ${RefParameters.nothingElse}
   """
 
   def testSetBy[T, P <: parameters.Parameter](g: Gen[P])(t: Parameter => T)(p: P => T) = {
@@ -62,25 +65,26 @@ class ParameterToGDDSpecs extends Specification with ScalaCheck with TestHelpers
   }
 
   object AllParameters {
-    def id = pending
-    def description = pending
-    def required = pending
-    def pattern = pending
+    def testAllParameters = testSetBy(Gen.oneOf[parameters.Parameter](
+      genQueryParameter, genBodyParameter()(), genHeaderParameter, genFormParameter, genCookieParameter
+    )) _
+    def id = testAllParameters(_.getId)(_.getName)
+    def description = testAllParameters(_.getDescription)(_.getDescription)
+    def required = testAllParameters(_.getRequired)(_.getRequired)
+    def pattern = testAllParameters(_.getPattern)(_.getPattern)
   }
 
-  trait AbstractSerializableParameters {
-    def parameterGenerator = genAbstractSerializableParameter
-
-    def `type` = testSetBy(parameterGenerator)(_.getType)(_.getType)
-    def format = testSetBy(parameterGenerator)(_.getFormat)(_.getFormat)
-    def enum = testSetBy(parameterGenerator)(_.getEnum)(_.getEnum)
-    def location = testSetBy(parameterGenerator)(_.getLocation)(_.getIn)
-    def default = testSetBy(parameterGenerator)(_.getDefault)(_.getDefaultValue)
-    def minimum = testSetBy(parameterGenerator)(_.getMinimum)(p => Option(p.getMinimum).map(_.toString).orNull)
-    def maximum = testSetBy(parameterGenerator)(_.getMinimum)(p => Option(p.getMaximum).map(_.toString).orNull)
-    def items = testSetBy(parameterGenerator)(_.getItems)(p => Option(p.getItems).map(SwaggerToGDD.propertyToGDD).orNull)
+  object AbstractSerializableParameters {
+    def `type` = testSetBy(genAbstractSerializableParameter)(_.getType)(_.getType)
+    def format = testSetBy(genAbstractSerializableParameter)(_.getFormat)(_.getFormat)
+    def enum = testSetBy(genAbstractSerializableParameter)(_.getEnum)(_.getEnum)
+    def location = testSetBy(genAbstractSerializableParameter)(_.getLocation)(_.getIn)
+    def default = testSetBy(genAbstractSerializableParameter)(_.getDefault)(_.getDefaultValue)
+    def minimum = testSetBy(genAbstractSerializableParameter)(_.getMinimum)(p => Option(p.getMinimum).map(_.toString).orNull)
+    def maximum = testSetBy(genAbstractSerializableParameter)(_.getMinimum)(p => Option(p.getMaximum).map(_.toString).orNull)
+    def items = testSetBy(genAbstractSerializableParameter)(_.getItems)(p => Option(p.getItems).map(SwaggerToGDD.propertyToGDD).orNull)
     def repeated = {
-      forAll(parameterGenerator) { parameter =>
+      forAll(genAbstractSerializableParameter) { parameter =>
         Option(parameter.getCollectionFormat) match {
           case Some("multi") => (SwaggerToGDD.parameterToGDD(parameter).getRepeated: Boolean) must beTrue
           case _ => Option(SwaggerToGDD.parameterToGDD(parameter).getRepeated) match {
@@ -91,45 +95,35 @@ class ParameterToGDDSpecs extends Specification with ScalaCheck with TestHelpers
       }
     }
   }
-  object AbstractSerializableParameters extends AbstractSerializableParameters
-
-  object PathParameters extends AbstractSerializableParameters {
-    override def parameterGenerator = genPathParameter
-  }
-
-  object QueryParameters extends AbstractSerializableParameters {
-    override def parameterGenerator = genQueryParameter
-  }
-
-  object HeaderParameters extends AbstractSerializableParameters {
-    override def parameterGenerator = genHeaderParameter
-  }
-
-  object CookieParameters extends AbstractSerializableParameters {
-    override def parameterGenerator = genCookieParameter
-  }
-
-  object FormParameters extends AbstractSerializableParameters {
-    override def parameterGenerator = genFormParameter
-  }
 
   object BodyParameters {
-    def modelImplType = pending
-    def modelImplFormat = pending
-    def modelImplDefault = pending
-    def modelImplProperties = pending
-    def modelImplAdditionalProperties = pending
+    def testSetByWithModel[T, M <: Model](g: Gen[M])(t: Parameter => T)(m: M => T) = {
+      testSetBy(genBodyParameter()(_ => g))(t)(p => m(p.getSchema.asInstanceOf[M]))
+    }
+    def modelImplType = testSetByWithModel(genModelImpl())(_.getType)(_.getType)
+    def modelImplFormat = testSetByWithModel(genModelImpl())(_.getFormat)(_.getFormat)
+    def modelImplDefault = testSetByWithModel(genModelImpl())(_.getDefault)(_.getDefaultValue)
+    def modelImplProperties = testSetByWithModel(genModelImpl())(_.getProperties)(m => Option(m.getProperties).map(_.asScala.mapValues(SwaggerToGDD.propertyToGDD).asJava).orNull)
+    def modelImplAdditionalProperties = testSetByWithModel(genModelImpl())(_.getAdditionalProperties)(m => Option(m.getAdditionalProperties).map(SwaggerToGDD.propertyToGDD).orNull)
 
-    def arrayModelType = pending
-    def arrayModelItems = pending
+    def arrayModelType = testSetTo(genBodyParameter()(_ => genArrayModel()))(_.getType)("array")
+    def arrayModelItems = testSetByWithModel(genArrayModel())(_.getItems)(m => Option(m.getItems).map(SwaggerToGDD.propertyToGDD).orNull)
 
-    def refModel$ref = pending
+    def refModel$ref = testSetByWithModel(Gen.mapOf(genSchema()).flatMap(genRefModel))(_.get$ref)(_.getSimpleRef)
 
     // todo ComposedModels
   }
 
   object RefParameters {
-    def $ref = pending
+    def genRefParam = Gen.nonEmptyMap[String, parameters.Parameter](genAbstractSerializableParameter.map(p => p.getName -> p)).flatMap(genRefParameter[parameters.Parameter])
+    def $ref = testSetBy(genRefParam)(_.get$ref)(_.getSimpleRef)
+    def nothingElse = {
+      forAll(genRefParam) { parameter =>
+        val param = SwaggerToGDD.parameterToGDD(parameter)
+        (param.getId must beNull) and (param.getDescription must beNull) and (param.getRequired must beNull) and
+          (param.getPattern must beNull)
+      }
+    }
   }
 
 

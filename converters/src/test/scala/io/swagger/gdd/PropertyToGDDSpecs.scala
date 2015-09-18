@@ -219,7 +219,7 @@ class PropertyToGDDSpecs extends Specification with ScalaCheck with TestHelpers 
   }
 
   object RefProperties {
-    def $ref = testSetBy(genSchema().map(Map(_)).flatMap(genRefProperty))(_.get$ref())(_.getSimpleRef)
+    def $ref = testSetBy(Gen.mapOf(genSchema()).flatMap(genRefProperty))(_.get$ref())(_.getSimpleRef)
   }
 
   // todo FileProperties
