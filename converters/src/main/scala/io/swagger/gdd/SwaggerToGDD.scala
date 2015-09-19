@@ -176,7 +176,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   /**
    * Find the response that best matches the default response. Prefers the smallest 2xx code.
    * @param responses an Operation's responses
-   * @return the response with the lowest 2xx code, otherwise the default one
+   * @return the response with the lowest 2xx code, otherwise the default one. None if there is no suitable candidate.
    */
   def findMethodResponse(responses: Map[String, Response]): Option[Response] = {
     implicit val ord = new Ordering[(String, Response)] {
