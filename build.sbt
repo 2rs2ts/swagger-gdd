@@ -3,7 +3,7 @@ import SiteKeys.siteSourceDirectory
 lazy val commonSettings = Seq(
   organization := "io.swagger",
   scalaVersion := "2.11.7",
-  scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-Xlint", "-Xfatal-warnings", "-target:jvm-1.7"),
+  scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-Xlint", "-target:jvm-1.7"), // turn "-Xfatal-warnings" on when docs are working
   conflictManager := ConflictManager.strict,
   dependencyOverrides <++= scalaVersion { v => Set(
     "org.scala-lang" % "scala-library" % v,

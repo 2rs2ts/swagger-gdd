@@ -15,8 +15,8 @@ import io.swagger.models.properties._
  * this class. Then you can either change your custom models after the fact, or you can subclass this class and override
  * the behavior, preferably by calling super and then making the changes you need afterward.
  *
- * @param modelFactory factory for creating GDD models. For custom implementations, subclass [[GDDModelFactory]] to
- *                     inject different models.
+ * @param modelFactory factory for creating GDD models. For custom implementations, subclass
+ *                     [[io.swagger.gdd.models.factory.GDDModelFactory GDDModelFactory]] to inject different models.
  */
 class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
 
@@ -193,7 +193,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
    * fields populated. All language below speaks as though those fields will not be `null`.
    *
    * The resulting `Parameter` will have its `id`, `description`, `required`, and `pattern` fields populated unless it
-   * is a [[RefParameter]]. A `RefParameter` will result in the `$ref` field being set, and nothing further.
+   * is a [[RefParameter]]. A `RefParameter` will result in the `\$ref` field being set, and nothing further.
    *
    * Any [[AbstractSerializableParameter]] (that is, parameters besides [[BodyParameter]] and [[RefParameter]]) will
    * have their `type`, `format`, `_enum`, `location`, `_default`, `minimum`, `maximum`, and `items` fields set
@@ -218,7 +218,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
    *  <tr><td>`repeated`</td><td>`collectionFormat`</td></tr>
    *  <tr><td>`properties`</td><td>`properties`</td></tr>
    *  <tr><td>`additionalProperties`</td><td>`additionalProperties`</td></tr>
-   *  <tr><td>`$ref`</td><td>`$ref` (simple ref)</td></tr>
+   *  <tr><td>`\$ref`</td><td>`\$ref` (simple ref)</td></tr>
    * </table>
    *
    * @param parameter the Parameter to transform
@@ -263,7 +263,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
    *
    * The resulting `Schema` will have its `id`, `description`, and `required` fields populated regardless of the
    * subclass of `Property`. Besides [[RefProperty]], everything else will result in the `type` field being populated
-   * as well. `RefProperty` will result in the `$ref` field being populated.
+   * as well. `RefProperty` will result in the `\$ref` field being populated.
    *
    * For [[StringProperty]], [[EmailProperty]], and [[UUIDProperty]], the `pattern` field will be populated.
    * `StringProperty` and `EmailProperty` will result in the `_default` field being populated. `StringProperty` will
@@ -301,7 +301,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
    *  <tr><td>`items`</td><td>`items`</td></tr>
    *  <tr><td>`properties`</td><td>`properties`</td></tr>
    *  <tr><td>`additionalProperties`</td><td>`additionalProperties`</td></tr>
-   *  <tr><td>`$ref`</td><td>`$ref` (simple ref)</td></tr>
+   *  <tr><td>`\$ref`</td><td>`\$ref` (simple ref)</td></tr>
    * </table>
    *
    * @param property the Property to convert
