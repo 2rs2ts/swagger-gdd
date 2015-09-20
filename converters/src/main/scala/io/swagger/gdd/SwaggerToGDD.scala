@@ -84,7 +84,30 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
 
   /**
    * Change the Schema Object (Model) into a GDD Schema. The Model will not be changed.
-   * @param key the key that the Schema Object was stored under, will become the id of the GDD Schema
+   *
+   * If any of the `Model`'s fields are `null`, the resulting `Schema` will not have its related fields populated.
+   * All language below speaks as though those fields will not be `null`.
+   *
+   * For all `Model` types, the `Schema` will have its `id` set the the key under which the `Model` was defined.
+   * Additionally, the `description` will be set to the `Model`'s `description`.
+   *
+   * The other fields will be set according to the logic of
+   * [[io.swagger.gdd.SwaggerToGDD#changeSchemaUsingModel changeSchemaUsingModel]].
+   *
+   * <table>
+   *   <tr><th>GDD `Schema` field</th><th>Swagger `Model` field which determines it</th></tr>
+   *   <tr><td>`id`</td><td>not set by a field, set by the key under which the Model` was defined</td></tr>
+   *   <tr><td>`description`</td><td>`description`</td></tr>
+   *   <tr><td>`type`</td><td>`type` (or manually set)</td></tr>
+   *   <tr><td>`format`</td><td>`format` (or manually set)</td></tr>
+   *   <tr><td>`_default`</td><td>`default`</td></tr>
+   *   <tr><td>`properties`</td><td>`properties`</td></tr>
+   *   <tr><td>`additionalProperties`</td><td>`additionalProperties</td></tr>
+   *   <tr><td>`items`</td><td>`items`</td></tr>
+   *   <td><td>`$$ref`</td><td>`$$ref`</td></tr>
+   * </table>
+   *
+   * @param key the key that the Schema Object was stored under; will become the id of the GDD Schema
    * @param model the Schema Object that will be converted into a GDD Schema
    * @return the converted Schema
    */
@@ -393,6 +416,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
       schema.setDefault(model.getDefaultValue)
       Option(model.getProperties).map(_.asScala.mapValues(propertyToGDD).asJava).foreach(schema.setProperties)
       Option(model.getAdditionalProperties).map(propertyToGDD).foreach(schema.setAdditionalProperties)
+      // todo ModelImpl is missing many fields defined in Swagger spec, add them when swagger-models adds them
     case model: ComposedModel =>
       // todo
   }

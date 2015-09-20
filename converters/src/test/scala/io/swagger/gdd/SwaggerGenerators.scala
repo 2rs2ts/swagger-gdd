@@ -37,7 +37,7 @@ object SwaggerGenerators {
       schemes <- option(listOf(oneOf(Scheme.values)).map(_.distinct.asJava))
       consumes <- option(listOf(genMIMEType).map(_.distinct.asJava))  // maybe derive these from the operations instead?
       produces <- option(listOf(genMIMEType).map(_.distinct.asJava))
-      definitions <- option(mapOf(genSchema()))
+      definitions <- option(mapOf(zip(arbitrary[String], genModel())))
       parameters <- option(mapOf(
         oneOf[parameters.Parameter](
           genQueryParameter, genBodyParameter(definitions)(), genHeaderParameter, genFormParameter, genCookieParameter
@@ -404,11 +404,11 @@ object SwaggerGenerators {
    * Generate a [[io.swagger.models.parameters.BodyParameter BodyParameter]].
    * @param globalDefinitions [[io.swagger.models.Model Model]]s defined in the [[io.swagger.models.Swagger Swagger]]
    *                         document which can be referred to
-   * @param schemaGenerator a generator which produces a [[Model]]. By default, it will just use [[genSchema]], but
+   * @param schemaGenerator a generator which produces a [[Model]]. By default, it will just use [[genModel]], but
    *                        it can be changed to produce some other `Model` type.
    */
   def genBodyParameter(globalDefinitions: Option[Map[String, Model]] = None)
-                      (schemaGenerator: Option[Map[String, Model]] => Gen[Model] = genSchema(_).map(_._2)): Gen[BodyParameter] = {
+                      (schemaGenerator: Option[Map[String, Model]] => Gen[Model] = genModel(_)): Gen[BodyParameter] = {
     for {
       parameter <- (new BodyParameter).withCommonFields
       required <- arbitrary[Option[Boolean]]
@@ -459,8 +459,11 @@ object SwaggerGenerators {
   /**
    * Generate an [[io.swagger.models.AbstractModel AbstractModel]], which is either an object or array schema
    * definition, or a schema composed of other schemas. Typed as returning a `Model` for compilation reasons.
+   * @param globalDefinitions [[io.swagger.models.Model Model]]s defined in the [[io.swagger.models.Swagger Swagger]]
+   *                         document which can be referred to
+   * @return a Model and its name (the key under which it should be stored)
    */
-  def genSchema(globalDefinitions: Option[Map[String, Model]] = None): Gen[(String, Model)] = {
+  def genModel(globalDefinitions: Option[Map[String, Model]] = None): Gen[Model] = {
     for {
       name <- arbitrary[String]
       model <- globalDefinitions match {
@@ -471,7 +474,7 @@ object SwaggerGenerators {
         case _ => oneOf(genModelImpl(globalDefinitions).map(m => {m.setName(name); m}),
           genArrayModel(globalDefinitions))
       }
-    } yield name -> model
+    } yield model
   } // todo add genComposedModel when it's implemented
 
   /**

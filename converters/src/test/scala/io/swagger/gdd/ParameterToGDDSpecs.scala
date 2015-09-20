@@ -5,6 +5,7 @@ import scala.collection.JavaConverters._
 import io.swagger.gdd.SwaggerGenerators._
 import io.swagger.gdd.models.Parameter
 import io.swagger.models.{Model, parameters}
+import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
 import org.scalacheck.Prop._
 import org.specs2.specification.core.SpecStructure
@@ -109,7 +110,7 @@ class ParameterToGDDSpecs extends Specification with ScalaCheck with TestHelpers
     def arrayModelType = testSetTo(genBodyParameter()(_ => genArrayModel()))(_.getType)("array")
     def arrayModelItems = testSetByWithModel(genArrayModel())(_.getItems)(m => Option(m.getItems).map(SwaggerToGDD.propertyToGDD).orNull)
 
-    def refModel$ref = testSetByWithModel(Gen.mapOf(genSchema()).flatMap(genRefModel))(_.get$ref)(_.getSimpleRef)
+    def refModel$ref = testSetByWithModel(Gen.mapOf(Gen.zip(arbitrary[String], genModel())).flatMap(genRefModel))(_.get$ref)(_.getSimpleRef)
 
     // todo ComposedModels
   }
