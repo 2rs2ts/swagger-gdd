@@ -203,7 +203,7 @@ object SwaggerGenerators {
       produces <- option(listOf(genMIMEType).map(_.distinct.asJava))
       parameters <- pathParameters match {
         case Nil => option(genOperationParameters(globalParameters, globalDefinitions))
-        case _ => genOperationParameters(globalParameters, globalDefinitions).map(_ ::: pathParameters).map(Some(_))
+        case _ => option(genOperationParameters(globalParameters, globalDefinitions)).map(_.getOrElse(List.empty[parameters.Parameter]) ::: pathParameters).map(Some(_))
       }
       consumes <- validConsumesForParameters(parameters, globalParameters).map(_.map(_.asJava))
       responses <- nonEmptyMap(genStatusCode.flatMap(code => genResponse(globalDefinitions).map(code -> _))).map(_.asJava)

@@ -44,7 +44,7 @@ public class GoogleDiscoveryDocument {
     /**
      * Schema definitions used in this document.
      */
-    private Map<String, Schema> schemas;
+    private Map<String, AbstractSchema> schemas;
     /**
      * API-level methods.
      */
@@ -198,11 +198,11 @@ public class GoogleDiscoveryDocument {
         this.features = features;
     }
 
-    public Map<String, Schema> getSchemas() {
+    public Map<String, AbstractSchema> getSchemas() {
         return schemas;
     }
 
-    public void setSchemas(Map<String, Schema> schemas) {
+    public void setSchemas(Map<String, AbstractSchema> schemas) {
         this.schemas = schemas;
     }
 

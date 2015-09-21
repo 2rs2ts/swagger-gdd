@@ -60,7 +60,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
 
     // definitions -> schemas
     Option(swagger.getDefinitions).map(_.asScala.map { case (key, model) =>
-      key -> schemaObjectToGDD(key, model)
+      key -> (schemaObjectToGDD(key, model): AbstractSchema)
     }.asJava).foreach(gdd.setSchemas)
 
     // paths -> methods, resources
@@ -78,6 +78,8 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
           curr + (basePath.stripPrefix("/") -> pathObjectsToGDD(ps, gdd))
       }.asJava)
     }
+
+    // todo: parameters need to go in schemas
 
     gdd
   }
@@ -156,12 +158,43 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   }
 
   /**
-   * Convert an Operation to a GDD Method. The Operation will not be changed.
+   * Convert an [[io.swagger.models.Operation Operation]] to a GDD [[io.swagger.gdd.models.Method Method]].
+   * The `Operation` will not be changed.
+   *
+   * If the `Operation`'s response has a non-ref `schema`, it will have to be added to the enclosing
+   * `GoogleDiscoveryDocument`'s `schemas` since GDD does not support non-ref responses.
+   *
+   * If the `Operation`'s `parameters` contains a [[io.swagger.models.parameters.BodyParameter BodyParameter]], or a
+   * [[io.swagger.models.parameters.RefParameter]] with its `in` field set to `"body"`, that will be set to the
+   * `request`. If it isn't a `RefParameter` then it will be added to the enclosing `GoogleDiscoveryDocument`'s
+   * `schemas` since GDD does not support non-ref `request`s.
+   *
+   * See the table below for the conversion logic.
+   *
+   * <table>
+   *   <tr><th>GDD `Method` field</th><th>Swagger `Operation` field which determines it</th></tr>
+   *   <tr><td>`id`</td><td>`operationId`</td></tr>
+   *   <tr><td>`description`</td><td>`summary`</td></tr>
+   *   <tr><td>`httpMethod`</td><td>not set by field, set by key under which the `Operation` was defined</td></tr>
+   *   <tr><td>`path`</td><td>not set by field, set by key under which the `Path` object holding the `Operation` was
+   *     defined</td></tr>
+   *   <tr><td>`parameters`</td><td>`parameters`; body parameters are not included</td></tr>
+   *   <tr><td>`response`</td><td>chosen from `responses` according to the logic of [[findMethodResponse]];
+   *     if its `schema` is not a [[io.swagger.models.properties.RefProperty RefProperty]] then it will be added
+   *     to the `GoogleDiscoveryDocument`'s `schemas` with the `id` `"{method's id}Response`.</td></tr>
+   *   <tr><td>`request`</td><td>chosen from `parameters` if there is a
+   *     [[io.swagger.models.parameters.BodyParameter BodyParameter]] or a
+   *     [[io.swagger.models.parameters.RefParameter RefParameter]] with its `in` set as `"body"`;
+   *     if it is a `BodyParameter` then it will be added to the `GoogleDiscoveryDocument`'s `schemas` with the `id`
+   *     `"{method's id}{parameter's id}Request"`.
+   *     [[io.swagger.models.parameters.FormParameter FormParameter]]s are unsupported, this is a todo.</td></tr>
+   * </table>
+   *
    * @param op the Operation on the Path
    * @param pathValue the full path value for the operation (including path parameters)
    * @param httpMethod the HTTP method for the operation
    * @param gdd the original GoogleDiscoveryDocument, which may have its schemas added to if an Operation's response is
-   *            not a reference type
+   *            not a reference type. This is because GDD does not support non-ref responses.
    * @return the converted Method
    */
   def operationToGDD(op: Operation, pathValue: String, httpMethod: String, gdd: GoogleDiscoveryDocument): Method = {
@@ -180,14 +213,26 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         Option(gdd.getSchemas) match {
           case Some(schemas) => schemas.put(prop.getId, prop)
           case None =>
-            gdd.setSchemas(Map(prop.getId -> prop).asJava)
+            gdd.setSchemas(Map[String, AbstractSchema](prop.getId -> prop).asJava)
         }
         method.setResponse(modelFactory.newSchemaRef(prop.getId))
     }
     Option(op.getParameters).map(_.asScala.toList).foreach { parameters =>
       method.setParameters(parameters.foldLeft(Map.empty[String, Parameter]) {
-        case (curr, param) if "body".equals(param.getIn) =>
-          method.setRequest(modelFactory.newSchemaRef(parameterToGDD(param).get$ref)) // todo make sure this is in schemas
+        case (curr, param) if "body".equals(param.getIn) => // todo form parameters?
+          param match {
+            case p: RefParameter => method.setRequest(modelFactory.newSchemaRef(parameterToGDD(p).get$ref))
+            case _ =>
+              // parameters defined globally in GDD apply to all apis. so we need to define a parameter as a schema
+              val schema = parameterToGDD(param)
+              schema.setId(s"${method.getId}${schema.getId}Request")
+              Option(gdd.getSchemas) match {
+                case Some(schemas) => schemas.put(schema.getId, schema)
+                case None =>
+                  gdd.setSchemas(Map[String, AbstractSchema](schema.getId -> schema).asJava)
+              }
+              method.setRequest(modelFactory.newSchemaRef(schema.getId))
+          }
           curr
         case (curr, param) =>
           curr + (param.getName -> parameterToGDD(param))
