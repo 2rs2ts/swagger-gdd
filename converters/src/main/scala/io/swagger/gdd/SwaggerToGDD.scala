@@ -122,9 +122,18 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   }
 
   /**
-   * Turn Path Objects into a GDD Resource. The Path Objects will not be changed.
-   * @param paths Paths grouped by key (path value)
-   * @return the Resource with all of its methods
+   * Turn [[io.swagger.models.Path Path]] Objects into a GDD [[io.swagger.gdd.models.Resource Resource]].
+   * The `Path` Objects will not be changed.
+   *
+   * The resulting `Resource` will have a [[io.swagger.gdd.models.Method Method]] for each of the `Path`'s
+   * [[io.swagger.models.Operation Operation]]s, for each `Path`. They will be the in `methods` field, keyed by
+   * each `Method`'s `id`.
+   *
+   * @see [[io.swagger.gdd.SwaggerToGDD#pathObjectToGDD pathObjectToGDD]]
+   * @param paths `Path`s grouped by key (path value)
+   * @param gdd the original `GoogleDiscoveryDocument`, which may need to have its schemas changed based on the
+   *            `Operation`s of the `Path` Objects
+   * @return the `Resource` with all of its methods
    */
   def pathObjectsToGDD(paths: Map[String, Path], gdd: GoogleDiscoveryDocument): Resource = {
     val resource = modelFactory.newResource()
@@ -135,13 +144,27 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   }
 
   /**
-   * Convert the Operations of a Path Object to Methods keyed by id, to be added to a Resource. The Path Object will not
-   * be changed.
-   * @param pathValue the full path value (including path parameters)
-   * @param path the Path object
-   * @param gdd the original GoogleDiscoveryDocument, which may need to have its schemas changed based on the Operations
-   *            of the Path Object
-   * @return a map of Method id to Method
+   * Convert the [[io.swagger.models.Operation Operation]]s of a [[io.swagger.models.Path Path]] Object to
+   * [[io.swagger.gdd.models.Method Method]]s keyed by `id`, to be added to a
+   * [[io.swagger.gdd.models.Resource Resource]]. The `Path` Object will not be changed.
+   *
+   * <table>
+   *   <tr><th>GDD `Method.httpMethod` value</th><th>Swagger `Path` method to get related `Operation`</th></tr>
+   *   <tr><td>`"GET"`</td><td>[[io.swagger.models.Path#getGet getGet]]</td></tr>
+   *   <tr><td>`"PUT"`</td><td>[[io.swagger.models.Path#getPut getPut]]</td></tr>
+   *   <tr><td>`"POST"`</td><td>[[io.swagger.models.Path#getPost getPost]]</td></tr>
+   *   <tr><td>`"PATCH"`</td><td>[[io.swagger.models.Path#getPatch getPatch]]</td></tr>
+   *   <tr><td>`"DELETE"`</td><td>[[io.swagger.models.Path#getDelete getDelete]]</td></tr>
+   *   <tr><td>`"HEAD"`</td><td>[[io.swagger.models.Path#getHead getHead]]</td></tr>
+   *   <tr><td>`"OPTIONS"`</td><td>[[io.swagger.models.Path#getOptions getOptions]]</td></tr>
+   * </table>
+   *
+   * @see [[io.swagger.gdd.SwaggerToGDD#operationToGDD operationToGDD]]
+   * @param pathValue the full path value (including path parameters in a templated string)
+   * @param path the `Path` object
+   * @param gdd the original `GoogleDiscoveryDocument`, which may need to have its schemas changed based on the
+   *            `Operation`s of the `Path` Object
+   * @return a map of `Method.id` to `Method`
    */
   def pathObjectToGDD(pathValue: String, path: Path, gdd: GoogleDiscoveryDocument): Map[String, Method] = {
     val methods = Option(path.getGet).map(operationToGDD(_, pathValue, "GET", gdd)) ::

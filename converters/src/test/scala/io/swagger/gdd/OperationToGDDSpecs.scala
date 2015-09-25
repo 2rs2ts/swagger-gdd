@@ -9,7 +9,7 @@ import io.swagger.models.properties.RefProperty
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
 import org.scalacheck.Gen._
-import org.scalacheck.Prop._
+import org.scalacheck.Prop.{apply => _, _}
 import org.specs2.mock.Mockito
 import org.specs2.specification.core.SpecStructure
 import org.specs2.{ScalaCheck, Specification}
