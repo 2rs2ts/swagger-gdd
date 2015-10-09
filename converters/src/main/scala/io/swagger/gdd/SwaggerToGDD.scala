@@ -15,8 +15,8 @@ import io.swagger.models.properties._
  * this class. Then you can either change your custom models after the fact, or you can subclass this class and override
  * the behavior, preferably by calling super and then making the changes you need afterward.
  *
- * @param modelFactory factory for creating GDD models. For custom implementations, subclass [[GDDModelFactory]] to
- *                     inject different models.
+ * @param modelFactory factory for creating GDD models. For custom implementations, subclass
+ *                     [[io.swagger.gdd.models.factory.GDDModelFactory GDDModelFactory]] to inject different models.
  */
 class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
 
@@ -60,7 +60,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
 
     // definitions -> schemas
     Option(swagger.getDefinitions).map(_.asScala.map { case (key, model) =>
-      key -> schemaObjectToGDD(key, model)
+      key -> (schemaObjectToGDD(key, model): AbstractSchema)
     }.asJava).foreach(gdd.setSchemas)
 
     // paths -> methods, resources
@@ -79,12 +79,37 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
       }.asJava)
     }
 
+    // todo: parameters need to go in schemas
+
     gdd
   }
 
   /**
    * Change the Schema Object (Model) into a GDD Schema. The Model will not be changed.
-   * @param key the key that the Schema Object was stored under, will become the id of the GDD Schema
+   *
+   * If any of the `Model`'s fields are `null`, the resulting `Schema` will not have its related fields populated.
+   * All language below speaks as though those fields will not be `null`.
+   *
+   * For all `Model` types, the `Schema` will have its `id` set the the key under which the `Model` was defined.
+   * Additionally, the `description` will be set to the `Model`'s `description`.
+   *
+   * The other fields will be set according to the logic of
+   * [[io.swagger.gdd.SwaggerToGDD#changeSchemaUsingModel changeSchemaUsingModel]].
+   *
+   * <table>
+   *   <tr><th>GDD `Schema` field</th><th>Swagger `Model` field which determines it</th></tr>
+   *   <tr><td>`id`</td><td>not set by a field, set by the key under which the Model` was defined</td></tr>
+   *   <tr><td>`description`</td><td>`description`</td></tr>
+   *   <tr><td>`type`</td><td>`type` (or manually set)</td></tr>
+   *   <tr><td>`format`</td><td>`format` (or manually set)</td></tr>
+   *   <tr><td>`_default`</td><td>`default`</td></tr>
+   *   <tr><td>`properties`</td><td>`properties`</td></tr>
+   *   <tr><td>`additionalProperties`</td><td>`additionalProperties</td></tr>
+   *   <tr><td>`items`</td><td>`items`</td></tr>
+   *   <td><td>`$$ref`</td><td>`$$ref`</td></tr>
+   * </table>
+   *
+   * @param key the key that the Schema Object was stored under; will become the id of the GDD Schema
    * @param model the Schema Object that will be converted into a GDD Schema
    * @return the converted Schema
    */
@@ -97,9 +122,18 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   }
 
   /**
-   * Turn Path Objects into a GDD Resource. The Path Objects will not be changed.
-   * @param paths Paths grouped by key (path value)
-   * @return the Resource with all of its methods
+   * Turn [[io.swagger.models.Path Path]] Objects into a GDD [[io.swagger.gdd.models.Resource Resource]].
+   * The `Path` Objects will not be changed.
+   *
+   * The resulting `Resource` will have a [[io.swagger.gdd.models.Method Method]] for each of the `Path`'s
+   * [[io.swagger.models.Operation Operation]]s, for each `Path`. They will be the in `methods` field, keyed by
+   * each `Method`'s `id`.
+   *
+   * @see [[io.swagger.gdd.SwaggerToGDD#pathObjectToGDD pathObjectToGDD]]
+   * @param paths `Path`s grouped by key (path value)
+   * @param gdd the original `GoogleDiscoveryDocument`, which may need to have its schemas changed based on the
+   *            `Operation`s of the `Path` Objects
+   * @return the `Resource` with all of its methods
    */
   def pathObjectsToGDD(paths: Map[String, Path], gdd: GoogleDiscoveryDocument): Resource = {
     val resource = modelFactory.newResource()
@@ -110,13 +144,27 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   }
 
   /**
-   * Convert the Operations of a Path Object to Methods keyed by id, to be added to a Resource. The Path Object will not
-   * be changed.
-   * @param pathValue the full path value (including path parameters)
-   * @param path the Path object
-   * @param gdd the original GoogleDiscoveryDocument, which may need to have its schemas changed based on the Operations
-   *            of the Path Object
-   * @return a map of Method id to Method
+   * Convert the [[io.swagger.models.Operation Operation]]s of a [[io.swagger.models.Path Path]] Object to
+   * [[io.swagger.gdd.models.Method Method]]s keyed by `id`, to be added to a
+   * [[io.swagger.gdd.models.Resource Resource]]. The `Path` Object will not be changed.
+   *
+   * <table>
+   *   <tr><th>GDD `Method.httpMethod` value</th><th>Swagger `Path` method to get related `Operation`</th></tr>
+   *   <tr><td>`"GET"`</td><td>[[io.swagger.models.Path#getGet getGet]]</td></tr>
+   *   <tr><td>`"PUT"`</td><td>[[io.swagger.models.Path#getPut getPut]]</td></tr>
+   *   <tr><td>`"POST"`</td><td>[[io.swagger.models.Path#getPost getPost]]</td></tr>
+   *   <tr><td>`"PATCH"`</td><td>[[io.swagger.models.Path#getPatch getPatch]]</td></tr>
+   *   <tr><td>`"DELETE"`</td><td>[[io.swagger.models.Path#getDelete getDelete]]</td></tr>
+   *   <tr><td>`"HEAD"`</td><td>[[io.swagger.models.Path#getHead getHead]]</td></tr>
+   *   <tr><td>`"OPTIONS"`</td><td>[[io.swagger.models.Path#getOptions getOptions]]</td></tr>
+   * </table>
+   *
+   * @see [[io.swagger.gdd.SwaggerToGDD#operationToGDD operationToGDD]]
+   * @param pathValue the full path value (including path parameters in a templated string)
+   * @param path the `Path` object
+   * @param gdd the original `GoogleDiscoveryDocument`, which may need to have its schemas changed based on the
+   *            `Operation`s of the `Path` Object
+   * @return a map of `Method.id` to `Method`
    */
   def pathObjectToGDD(pathValue: String, path: Path, gdd: GoogleDiscoveryDocument): Map[String, Method] = {
     val methods = Option(path.getGet).map(operationToGDD(_, pathValue, "GET", gdd)) ::
@@ -133,12 +181,43 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   }
 
   /**
-   * Convert an Operation to a GDD Method. The Operation will not be changed.
+   * Convert an [[io.swagger.models.Operation Operation]] to a GDD [[io.swagger.gdd.models.Method Method]].
+   * The `Operation` will not be changed.
+   *
+   * If the `Operation`'s response has a non-ref `schema`, it will have to be added to the enclosing
+   * `GoogleDiscoveryDocument`'s `schemas` since GDD does not support non-ref responses.
+   *
+   * If the `Operation`'s `parameters` contains a [[io.swagger.models.parameters.BodyParameter BodyParameter]], or a
+   * [[io.swagger.models.parameters.RefParameter]] with its `in` field set to `"body"`, that will be set to the
+   * `request`. If it isn't a `RefParameter` then it will be added to the enclosing `GoogleDiscoveryDocument`'s
+   * `schemas` since GDD does not support non-ref `request`s.
+   *
+   * See the table below for the conversion logic.
+   *
+   * <table>
+   *   <tr><th>GDD `Method` field</th><th>Swagger `Operation` field which determines it</th></tr>
+   *   <tr><td>`id`</td><td>`operationId`</td></tr>
+   *   <tr><td>`description`</td><td>`summary`</td></tr>
+   *   <tr><td>`httpMethod`</td><td>not set by field, set by key under which the `Operation` was defined</td></tr>
+   *   <tr><td>`path`</td><td>not set by field, set by key under which the `Path` object holding the `Operation` was
+   *     defined</td></tr>
+   *   <tr><td>`parameters`</td><td>`parameters`; body parameters are not included</td></tr>
+   *   <tr><td>`response`</td><td>chosen from `responses` according to the logic of [[findMethodResponse]];
+   *     if its `schema` is not a [[io.swagger.models.properties.RefProperty RefProperty]] then it will be added
+   *     to the `GoogleDiscoveryDocument`'s `schemas` with the `id` `"{method's id}Response`.</td></tr>
+   *   <tr><td>`request`</td><td>chosen from `parameters` if there is a
+   *     [[io.swagger.models.parameters.BodyParameter BodyParameter]] or a
+   *     [[io.swagger.models.parameters.RefParameter RefParameter]] with its `in` set as `"body"`;
+   *     if it is a `BodyParameter` then it will be added to the `GoogleDiscoveryDocument`'s `schemas` with the `id`
+   *     `"{method's id}{parameter's id}Request"`.
+   *     [[io.swagger.models.parameters.FormParameter FormParameter]]s are unsupported, this is a todo.</td></tr>
+   * </table>
+   *
    * @param op the Operation on the Path
    * @param pathValue the full path value for the operation (including path parameters)
    * @param httpMethod the HTTP method for the operation
    * @param gdd the original GoogleDiscoveryDocument, which may have its schemas added to if an Operation's response is
-   *            not a reference type
+   *            not a reference type. This is because GDD does not support non-ref responses.
    * @return the converted Method
    */
   def operationToGDD(op: Operation, pathValue: String, httpMethod: String, gdd: GoogleDiscoveryDocument): Method = {
@@ -154,14 +233,29 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         // non-ref responses have to get added as schemas since GDD doesn't allow non-ref responses
         val prop = propertyToGDD(property)
         prop.setId(s"${method.getId}Response")
-        prop.setRequired(null) // required seems awkward here
-        gdd.getSchemas.put(prop.getId, prop)
+        Option(gdd.getSchemas) match {
+          case Some(schemas) => schemas.put(prop.getId, prop)
+          case None =>
+            gdd.setSchemas(Map[String, AbstractSchema](prop.getId -> prop).asJava)
+        }
         method.setResponse(modelFactory.newSchemaRef(prop.getId))
     }
     Option(op.getParameters).map(_.asScala.toList).foreach { parameters =>
       method.setParameters(parameters.foldLeft(Map.empty[String, Parameter]) {
-        case (curr, param) if "body".equals(param.getIn) =>
-          method.setRequest(modelFactory.newSchemaRef(parameterToGDD(param).get$ref)) // todo make sure this is in schemas
+        case (curr, param) if "body".equals(param.getIn) => // todo form parameters?
+          param match {
+            case p: RefParameter => method.setRequest(modelFactory.newSchemaRef(parameterToGDD(p).get$ref))
+            case _ =>
+              // parameters defined globally in GDD apply to all apis. so we need to define a parameter as a schema
+              val schema = parameterToGDD(param)
+              schema.setId(s"${method.getId}${schema.getId}Request")
+              Option(gdd.getSchemas) match {
+                case Some(schemas) => schemas.put(schema.getId, schema)
+                case None =>
+                  gdd.setSchemas(Map[String, AbstractSchema](schema.getId -> schema).asJava)
+              }
+              method.setRequest(modelFactory.newSchemaRef(schema.getId))
+          }
           curr
         case (curr, param) =>
           curr + (param.getName -> parameterToGDD(param))
@@ -173,7 +267,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   /**
    * Find the response that best matches the default response. Prefers the smallest 2xx code.
    * @param responses an Operation's responses
-   * @return the response with the lowest 2xx code, otherwise the default one
+   * @return the response with the lowest 2xx code, otherwise the default one. None if there is no suitable candidate.
    */
   def findMethodResponse(responses: Map[String, Response]): Option[Response] = {
     implicit val ord = new Ordering[(String, Response)] {
@@ -183,42 +277,123 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
   }
 
   /**
-   * Turn a Swagger Parameter into a GDD Parameter. The (Swagger) Parameter will not be changed.
+   * Turn a Swagger [[io.swagger.models.parameters.Parameter Parameter]] into a GDD [[Parameter]].
+   * The (Swagger) Parameter will not be changed.
+   *
+   * If any of the (Swagger) `Parameter`'s fields are `null`, the resulting `Parameter` will not have its related
+   * fields populated. All language below speaks as though those fields will not be `null`.
+   *
+   * The resulting `Parameter` will have its `id`, `description`, `required`, and `pattern` fields populated unless it
+   * is a [[RefParameter]]. A `RefParameter` will result in the `\$ref` field being set, and nothing further.
+   *
+   * Any [[AbstractSerializableParameter]] (that is, parameters besides [[BodyParameter]] and [[RefParameter]]) will
+   * have their `type`, `format`, `_enum`, `location`, `_default`, `minimum`, `maximum`, and `items` fields set
+   * (when relevant.) If the `collectionFormat` is `"multi"` then `repeated` will be set to `true`.
+   *
+   * A [[BodyParameter]] will result in fields being set based on the type of [[Model]] in the `schema` field
+   * according to the logic of [[changeSchemaUsingModel]].
+   *
+   * <table>
+   *  <tr><th>GDD `Parameter` field</th><th>Swagger `Parameter` field which determines it</th></tr>
+   *  <tr><td>`id`</td><td>`name`</td></tr>
+   *  <tr><td>`description`</td><td>`description`</td></tr>
+   *  <tr><td>`required`</td><td>`required`</td></tr>
+   *  <tr><td>`type`</td><td>`type` (or manually set)</td></tr>
+   *  <tr><td>`format`</td><td>`format` (or manually set)</td></tr>
+   *  <tr><td>`pattern`</td><td>`pattern`</td></tr>
+   *  <tr><td>`_default`</td><td>`default`</td></tr>
+   *  <tr><td>`_enum`</td><td>`enum`</td></tr>
+   *  <tr><td>`minimum`</td><td>`minimum`</td></tr>
+   *  <tr><td>`maximum`</td><td>`maximum`</td></tr>
+   *  <tr><td>`items`</td><td>`items`</td></tr>
+   *  <tr><td>`repeated`</td><td>`collectionFormat`</td></tr>
+   *  <tr><td>`properties`</td><td>`properties`</td></tr>
+   *  <tr><td>`additionalProperties`</td><td>`additionalProperties`</td></tr>
+   *  <tr><td>`\$ref`</td><td>`\$ref` (simple ref)</td></tr>
+   * </table>
+   *
    * @param parameter the Parameter to transform
    * @return the converted Parameter
    */
   def parameterToGDD(parameter: io.swagger.models.parameters.Parameter): Parameter = {
     val param = modelFactory.newParameter()
-    param.setId(parameter.getName)
-    param.setDescription(parameter.getDescription)
-    param.setRequired(parameter.getRequired)
-    param.setPattern(parameter.getPattern)
     parameter match {
       case p: RefParameter =>
         param.set$ref(p.getSimpleRef)
-      case p: AbstractSerializableParameter[_] =>
-        param.setType(p.getType)
-        param.setFormat(p.getFormat)
-        param.setEnum(p.getEnum)
-        param.setLocation(p.getIn) // GDD doesn't care about this for body params, but we only take the ref from it anyway
-        Option(p.getMinimum).map(_.toString).foreach(param.setMinimum)
-        Option(p.getMaximum).map(_.toString).foreach(param.setMaximum)
-        Option(p.getItems).map(propertyToGDD).map { prop =>
-          prop.setRequired(null)  // required seems awkward here
-          prop
-        }.foreach(param.setItems)
-        Option(p.getCollectionFormat).foreach {
-          case "multi" => param.setRepeated(true)
-          case _ =>
+      case _ =>
+        param.setId(parameter.getName)
+        param.setDescription(parameter.getDescription)
+        param.setRequired(parameter.getRequired)
+        param.setPattern(parameter.getPattern)
+        parameter match {
+          case p: AbstractSerializableParameter[_] =>
+            param.setType(p.getType)
+            param.setFormat(p.getFormat)
+            param.setEnum(p.getEnum)
+            param.setLocation(p.getIn) // GDD doesn't care about this for body params, but we only take the ref from it anyway
+            param.setDefault(p.getDefaultValue)
+            Option(p.getMinimum).map(_.toString).foreach(param.setMinimum)
+            Option(p.getMaximum).map(_.toString).foreach(param.setMaximum)
+            Option(p.getItems).map(propertyToGDD).foreach(param.setItems)
+            Option(p.getCollectionFormat) match {
+              case Some("multi") => param.setRepeated(true)
+              case _ =>
+            }
+          case p: BodyParameter =>
+            Option(p.getSchema).foreach(changeSchemaUsingModel(param, _))
         }
-      case p: BodyParameter =>
-        Option(p.getSchema).foreach(changeSchemaUsingModel(param, _))
     }
     param
   }
 
   /**
-   * Turn a Property into a GDD Schema. The Property will not be changed.
+   * Turn a Swagger [[Property]] into a GDD [[Schema]]. The `Property` will not be changed.
+   *
+   * If any of the `Property`'s fields are `null`, the resulting `Schema` will not have its related fields populated.
+   * All language below speaks as though those fields will not be `null`.
+   *
+   * The resulting `Schema` will have its `id`, `description`, and `required` fields populated regardless of the
+   * subclass of `Property`. Besides [[RefProperty]], everything else will result in the `type` field being populated
+   * as well. `RefProperty` will result in the `\$ref` field being populated.
+   *
+   * For [[StringProperty]], [[EmailProperty]], and [[UUIDProperty]], the `pattern` field will be populated.
+   * `StringProperty` and `EmailProperty` will result in the `_default` field being populated. `StringProperty` will
+   * also result in the `_enum` field being populated, and if the `Property`'s `format` is `"byte"`, then so will the
+   * `Schema`'s `format` be.
+   *
+   * [[DateProperty]], [[DateTimeProperty]], and [[ByteArrayProperty]] will be treated as a `StringProperty` with
+   * `format` equal to `"date"`, `"date-time"`, and `"byte"` respectively, but none will result in the `pattern` field
+   * being populated.
+   *
+   * For any [[AbstractNumericProperty]], the `format`, `minimum`, and `maximum` fields will all be populated.
+   * [[IntegerProperty]], [[LongProperty]], [[DoubleProperty]], and [[FloatProperty]] will result in the `_default`
+   * field being populated.
+   *
+   * For [[ArrayProperty]], the `items` field will be populated.
+   *
+   * For [[MapProperty]], the `additionalProperties` field will be populated.
+   *
+   * For [[ObjectProperty]], the `properties` field will be populated.
+   *
+   * @todo Implement something sane for [[FileProperty]].
+   *
+   * <table>
+   *  <tr><th>`Schema` field</th><th>`Property` field which determines it</th></tr>
+   *  <tr><td>`id`</td><td>`name`</td></tr>
+   *  <tr><td>`description`</td><td>`description`</td></tr>
+   *  <tr><td>`required`</td><td>`required`</td></tr>
+   *  <tr><td>`type`</td><td>`type` (or manually set)</td></tr>
+   *  <tr><td>`format`</td><td>`format` (or manually set)</td></tr>
+   *  <tr><td>`pattern`</td><td>`pattern`</td></tr>
+   *  <tr><td>`_default`</td><td>`default`</td></tr>
+   *  <tr><td>`_enum`</td><td>`enum`</td></tr>
+   *  <tr><td>`minimum`</td><td>`minimum`</td></tr>
+   *  <tr><td>`maximum`</td><td>`maximum`</td></tr>
+   *  <tr><td>`items`</td><td>`items`</td></tr>
+   *  <tr><td>`properties`</td><td>`properties`</td></tr>
+   *  <tr><td>`additionalProperties`</td><td>`additionalProperties`</td></tr>
+   *  <tr><td>`\$ref`</td><td>`\$ref` (simple ref)</td></tr>
+   * </table>
    *
    * @param property the Property to convert
    * @return the converted Schema
@@ -231,12 +406,8 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
     property match {
       case prop: RefProperty =>
         schema.set$ref(prop.getSimpleRef)
-      case prop: ArrayProperty =>
-        schema.setType("array")
-        Option(prop.getItems).map(propertyToGDD).map { p =>
-          p.setRequired(null) // required seems awkward here
-          p
-        }.foreach(schema.setItems)
+      case prop: BooleanProperty =>
+        schema.setType("boolean")
       case prop: UUIDProperty =>
         schema.setType("string")
         schema.setPattern(prop.getPattern)
@@ -253,6 +424,21 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         schema.setPattern(prop.getPattern)
         schema.setEnum(prop.getEnum)
         schema.setDefault(prop.getDefault)
+      case prop: DateProperty =>
+        schema.setType("string")
+        schema.setFormat("date")
+      case prop: DateTimeProperty =>
+        schema.setType("string")
+        schema.setFormat("date-time")
+      case prop: ByteArrayProperty =>
+        schema.setType("string")
+        schema.setFormat("byte")
+      case prop: LongProperty =>
+        schema.setType("string")
+        schema.setFormat("int64")
+        Option(prop.getMinimum).map(_.toString).foreach(schema.setMinimum)
+        Option(prop.getMaximum).map(_.toString).foreach(schema.setMaximum)
+        Option(prop.getDefault).map(_.toString).foreach(schema.setDefault)
       case prop: AbstractNumericProperty =>
         schema.setType(prop.getType)
         schema.setFormat(prop.getFormat)
@@ -260,18 +446,23 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
         Option(prop.getMaximum).map(_.toString).foreach(schema.setMaximum)
         prop match {
           case p: IntegerProperty => Option(p.getDefault).map(_.toString).foreach(schema.setDefault)
-          case p: LongProperty => Option(p.getDefault).map(_.toString).foreach(schema.setDefault)
           case p: FloatProperty => Option(p.getDefault).map(_.toString).foreach(schema.setDefault)
           case p: DoubleProperty => Option(p.getDefault).map(_.toString).foreach(schema.setDefault)
           case _ =>
         }
+      case prop: ArrayProperty =>
+        schema.setType("array")
+        Option(prop.getItems).map(propertyToGDD).foreach(schema.setItems)
+      case prop: MapProperty =>
+        schema.setType("object")
+        Option(prop.getAdditionalProperties).map(propertyToGDD).foreach(schema.setAdditionalProperties)
       case prop: ObjectProperty =>
         schema.setType("object")
-        // todo add additonalProperties when it's supported in swagger-models
-      case prop =>
+        Option(prop.getProperties).map(_.asScala.mapValues(propertyToGDD).asJava).foreach(schema.setProperties)
+      case prop: FileProperty =>
+        // todo figure out a sane way to treat these since GDD has no concept of formData.
         schema.setType(prop.getType)
         schema.setFormat(prop.getFormat)
-      // todo FileProperty - the problem is that GDD has no concept of formData
     }
     schema
   }
@@ -283,7 +474,6 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
    */
   def changeSchemaUsingModel(schema: AbstractSchema, model: Model): Unit = model match {
     case model: RefModel =>
-      schema.setType("object")
       schema.set$ref(model.getSimpleRef)
     case model: ArrayModel =>
       schema.setType("array")
@@ -292,10 +482,9 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
       schema.setType(model.getType)
       schema.setFormat(model.getFormat)
       schema.setDefault(model.getDefaultValue)
-      Option(model.getProperties).map(_.asScala.map {
-        case (propKey, prop) => propKey -> propertyToGDD(prop)
-      }.toMap.asJava).foreach(schema.setProperties)
+      Option(model.getProperties).map(_.asScala.mapValues(propertyToGDD).asJava).foreach(schema.setProperties)
       Option(model.getAdditionalProperties).map(propertyToGDD).foreach(schema.setAdditionalProperties)
+      // todo ModelImpl is missing many fields defined in Swagger spec, add them when swagger-models adds them
     case model: ComposedModel =>
       // todo
   }
@@ -304,6 +493,7 @@ class SwaggerToGDD(val modelFactory: GDDModelFactory = new GDDModelFactory) {
 }
 
 object SwaggerToGDD {
+
   /**
    * Create a new GoogleDiscoveryDocument from a Swagger instance. The Swagger will not be modified.
    * @param swagger a model of a swagger document
@@ -311,5 +501,13 @@ object SwaggerToGDD {
    */
   def swaggerToGDD(swagger: Swagger): GoogleDiscoveryDocument = {
     new SwaggerToGDD().swaggerToGDD(swagger)
+  }
+
+  def parameterToGDD(parameter: io.swagger.models.parameters.Parameter): Parameter = {
+    new SwaggerToGDD().parameterToGDD(parameter)
+  }
+
+  def propertyToGDD(property: Property): Schema = {
+    new SwaggerToGDD().propertyToGDD(property)
   }
 }

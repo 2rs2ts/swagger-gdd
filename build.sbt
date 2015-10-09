@@ -3,7 +3,7 @@ import SiteKeys.siteSourceDirectory
 lazy val commonSettings = Seq(
   organization := "io.swagger",
   scalaVersion := "2.11.7",
-  scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-Xlint", "-Xfatal-warnings", "-target:jvm-1.7"),
+  scalacOptions ++= Seq("-deprecation", "-unchecked", "-feature", "-Xlint", "-target:jvm-1.7"), // turn "-Xfatal-warnings" on when docs are working
   conflictManager := ConflictManager.strict,
   dependencyOverrides <++= scalaVersion { v => Set(
     "org.scala-lang" % "scala-library" % v,
@@ -45,6 +45,8 @@ lazy val `swagger-gdd-converters` = (project in file("converters")).
       "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.0",
       "org.scalacheck" %% "scalacheck" % "1.12.4" % "test",
       "org.specs2" %% "specs2-core" % "3.6.4" % "test",
-      "org.specs2" %% "specs2-scalacheck" % "3.6.4" % "test"
+      "org.specs2" %% "specs2-scalacheck" % "3.6.4" % "test",
+      "org.specs2" %% "specs2-mock" % "3.6.4" % "test",
+      "com.paypal" %% "cascade-common" % "0.5.0" % "test" classifier "tests" exclude("org.slf4j", "slf4j-api") exclude("com.fasterxml.jackson.datatype", "jackson-datatype-joda")
     )
   )
